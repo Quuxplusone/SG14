@@ -86,6 +86,10 @@ void sg14_test::inplace_function_test()
     assert(func40 == nullptr);
     assert(!(func40 != nullptr));
     expected = 0; try { func40(42); } catch (std::bad_function_call&) { expected = 1; } assert(expected == 1);
+
+    using IPF256 = stdext::inplace_function<void(), 64, 256>;
+    static_assert(sizeof(IPF256) == 256, "");
+    static_assert(alignof(IPF256) == 256, "");
 }
 
 #ifdef TEST_MAIN

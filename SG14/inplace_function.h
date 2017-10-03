@@ -205,7 +205,7 @@ public:
 	// Swaps two targets
 	void swap(inplace_function& other)
 	{
-		BufferType tempData;
+		alignas(Alignment) char tempData[Capacity];
 		this->move_data(m_Data, tempData);
 		other.move_data(other.m_Data, m_Data);
 		this->move_data(tempData, other.m_Data);
@@ -214,13 +214,12 @@ public:
 	}
 
 private:
-	using BufferType = typename std::aligned_storage<Capacity, Alignment>::type;
 	void clear() noexcept
 	{
 		m_ManagerFctPtr(data(), nullptr, Operation::Destroy);
 		m_ManagerFctPtr = EmptyManagerFunction;
 		m_InvokeFctPtr = EmptyInvokeFunction;
-       }
+	}
 
 	template<size_t OtherCapacity, size_t OtherAlignment>
 	void copy(const inplace_function<RetT(ArgsT...), OtherCapacity, OtherAlignment>& other)
@@ -234,9 +233,9 @@ private:
 		m_ManagerFctPtr = other.m_ManagerFctPtr;
 	}
 
-	void move_data(BufferType& from, BufferType& to)
+	void move_data(void *from, void *to)
 	{
-		m_ManagerFctPtr(&from, &to, Operation::Move);
+		m_ManagerFctPtr(from, to, Operation::Move);
 	}
 
 	template<size_t OtherCapacity, size_t OtherAlignment>
@@ -259,10 +258,9 @@ private:
 	using Operation = inplace_function_operation;
 	using ManagerFctPtrType = bool(*) (void* thisPtr, const void* fromPtr, Operation);
 
+	alignas(Alignment) char m_Data[Capacity];
 	InvokeFctPtrType m_InvokeFctPtr = EmptyInvokeFunction;
 	ManagerFctPtrType m_ManagerFctPtr = EmptyManagerFunction;
-
-	BufferType m_Data;
 
 	static RetT EmptyInvokeFunction(ArgsT..., const void*)
 	{
