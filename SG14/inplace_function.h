@@ -39,7 +39,8 @@ enum class inplace_function_operation
 {
 	Destroy,
 	Copy,
-	Move
+	Move,
+	IsEmpty
 };
 
 template <typename SignatureT, size_t Capacity = InplaceFunctionDefaultCapacity, size_t Alignment = InplaceFunctionDefaultAlignment>
@@ -56,9 +57,7 @@ public:
 	// TODO create free operator overloads, to handle switched arguments
 
 	// Creates and empty inplace_function
-	constexpr inplace_function() noexcept : m_InvokeFctPtr(&DefaultFunction), m_ManagerFctPtr(nullptr)
-	{
-	}
+	constexpr inplace_function() noexcept = default;
 
 	// Destroys the inplace_function. If the stored callable is valid, it is destroyed also
 	~inplace_function()
@@ -193,8 +192,8 @@ public:
 	// Converts to 'true' if assigned
 	explicit constexpr operator bool() const noexcept
 	{
-		return m_InvokeFctPtr != &DefaultFunction;
-	}
+		return !m_ManagerFctPtr(nullptr, nullptr, Operation::IsEmpty);
+        }
 
 	// Invokes the target
 	// Throws std::bad_function_call if not assigned
@@ -207,9 +206,9 @@ public:
 	void swap(inplace_function& other)
 	{
 		BufferType tempData;
-		this->move(m_Data, tempData);
-		other.move(other.m_Data, m_Data);
-		this->move(tempData, other.m_Data);
+		this->move_data(m_Data, tempData);
+		other.move_data(other.m_Data, m_Data);
+		this->move_data(tempData, other.m_Data);
 		std::swap(m_InvokeFctPtr, other.m_InvokeFctPtr);
 		std::swap(m_ManagerFctPtr, other.m_ManagerFctPtr);
 	}
@@ -218,11 +217,10 @@ private:
 	using BufferType = typename std::aligned_storage<Capacity, Alignment>::type;
 	void clear() noexcept
 	{
-		m_InvokeFctPtr = &DefaultFunction;
-		if (m_ManagerFctPtr)
-			m_ManagerFctPtr(data(), nullptr, Operation::Destroy);
-		m_ManagerFctPtr = nullptr;
-	}
+		m_ManagerFctPtr(data(), nullptr, Operation::Destroy);
+		m_ManagerFctPtr = EmptyManagerFunction;
+		m_InvokeFctPtr = EmptyInvokeFunction;
+       }
 
 	template<size_t OtherCapacity, size_t OtherAlignment>
 	void copy(const inplace_function<RetT(ArgsT...), OtherCapacity, OtherAlignment>& other)
@@ -230,19 +228,15 @@ private:
 		static_assert(OtherCapacity <= Capacity, "Can't squeeze larger inplace_function into a smaller one");
 		static_assert(Alignment % OtherAlignment == 0, "Incompatible alignments");
 
-		if (other.m_ManagerFctPtr)
-			other.m_ManagerFctPtr(data(), other.data(), Operation::Copy);
+		other.m_ManagerFctPtr(data(), other.data(), Operation::Copy);
 
 		m_InvokeFctPtr = other.m_InvokeFctPtr;
 		m_ManagerFctPtr = other.m_ManagerFctPtr;
 	}
 
-	void move(BufferType& from, BufferType& to)
+	void move_data(BufferType& from, BufferType& to)
 	{
-		if (m_ManagerFctPtr)
-			m_ManagerFctPtr(&from, &to, Operation::Move);
-		else
-			to = from;
+		m_ManagerFctPtr(&from, &to, Operation::Move);
 	}
 
 	template<size_t OtherCapacity, size_t OtherAlignment>
@@ -251,8 +245,7 @@ private:
 		static_assert(OtherCapacity <= Capacity, "Can't squeeze larger inplace_function into a smaller one");
 		static_assert(Alignment % OtherAlignment == 0, "Incompatible alignments");
 
-		if (other.m_ManagerFctPtr)
-			other.m_ManagerFctPtr(data(), other.data(), Operation::Move);
+		other.m_ManagerFctPtr(data(), other.data(), Operation::Move);
 
 		m_InvokeFctPtr = other.m_InvokeFctPtr;
 		m_ManagerFctPtr = other.m_ManagerFctPtr;
@@ -264,22 +257,22 @@ private:
 	using CompatibleFunctionPointer = RetT(*)(ArgsT...);
 	using InvokeFctPtrType = RetT(*)(ArgsT..., const void* thisPtr);
 	using Operation = inplace_function_operation;
-	using ManagerFctPtrType = void(*) (void* thisPtr, const void* fromPtr, Operation);
+	using ManagerFctPtrType = bool(*) (void* thisPtr, const void* fromPtr, Operation);
 
-	InvokeFctPtrType m_InvokeFctPtr;
-	ManagerFctPtrType m_ManagerFctPtr;
+	InvokeFctPtrType m_InvokeFctPtr = EmptyInvokeFunction;
+	ManagerFctPtrType m_ManagerFctPtr = EmptyManagerFunction;
 
 	BufferType m_Data;
 
-	static RetT DefaultFunction(ArgsT..., const void*)
+	static RetT EmptyInvokeFunction(ArgsT..., const void*)
 	{
 		throw std::bad_function_call();
 	}
 
 	void set(std::nullptr_t)
 	{
-		m_ManagerFctPtr = nullptr;
-		m_InvokeFctPtr = &DefaultFunction;
+		m_InvokeFctPtr = EmptyInvokeFunction;
+		m_ManagerFctPtr = EmptyManagerFunction;
 	}
 
 	// For function pointers
@@ -287,9 +280,9 @@ private:
 	{
 		// this is dodgy, and - according to standard - undefined behaviour. But it works
 		// see: http://stackoverflow.com/questions/559581/casting-a-function-pointer-to-another-type
-		m_ManagerFctPtr = nullptr;
 		m_InvokeFctPtr = reinterpret_cast<InvokeFctPtrType>(ptr);
-	}
+		m_ManagerFctPtr = CompatibleFunctionPointerManagerFunction;
+        }
 
 	// Set - for functors
 	// enable_if makes sure this is excluded for function references and pointers.
@@ -339,27 +332,51 @@ private:
 	}
 
 	template <typename FunctorT>
-	static void manage(void* dataPtr, const void* fromPtr, Operation op)
+	static bool manage(void* dataPtr, const void* fromPtr, Operation op)
 	{
 		FunctorT* thisFunctor = reinterpret_cast<FunctorT*>(dataPtr);
-		switch (op)
-		{
-		case Operation::Destroy:
+		switch (op) {
+		case Operation::Destroy: {
 			thisFunctor->~FunctorT();
 			break;
-		case Operation::Copy:
-			{
-				const FunctorT* source = (const FunctorT*)const_cast<void*>(fromPtr);
-				new (thisFunctor) FunctorT(*source);
-				break;
-			}
-		case Operation::Move:
-			{
-				FunctorT* source = (FunctorT*)fromPtr;
-				new (thisFunctor) FunctorT(std::move(*source));
-				break;
-			}
+                }
+		case Operation::Copy: {
+			const FunctorT* source = (const FunctorT*)const_cast<void*>(fromPtr);
+			new (thisFunctor) FunctorT(*source);
+			break;
 		}
+		case Operation::Move: {
+			FunctorT* source = (FunctorT*)fromPtr;
+			new (thisFunctor) FunctorT(std::move(*source));
+			break;
+		}
+		case Operation::IsEmpty: {
+			return false;
+		}
+		}
+                return false;
+	}
+
+	static bool CompatibleFunctionPointerManagerFunction(void* dataPtr, const void* fromPtr, Operation op)
+	{
+		switch (op) {
+		case Operation::Destroy: break;
+		case Operation::Copy: break;
+		case Operation::Move: break;
+		case Operation::IsEmpty: return false;
+		}
+		return false;
+	}
+
+	static bool EmptyManagerFunction(void* dataPtr, const void* fromPtr, Operation op)
+	{
+		switch (op) {
+		case Operation::Destroy: break;
+		case Operation::Copy: break;
+		case Operation::Move: break;
+		case Operation::IsEmpty: return true;
+		}
+		return false;
 	}
 };
 
