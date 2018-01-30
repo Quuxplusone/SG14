@@ -3,6 +3,7 @@
 
 namespace sg14_test
 {
+    void function_ref_test();
     void inplace_function_test();
     void plf_colony_test();
     void ring_test();

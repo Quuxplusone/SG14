@@ -23,6 +23,7 @@ find_package(Threads REQUIRED)
 
 set(SOURCE_FILES
     ${SG14_TEST_SOURCE_DIRECTORY}/main.cpp
+    ${SG14_TEST_SOURCE_DIRECTORY}/function_ref_test.cpp
     ${SG14_TEST_SOURCE_DIRECTORY}/inplace_function_test.cpp
     ${SG14_TEST_SOURCE_DIRECTORY}/plf_colony_test.cpp
     ${SG14_TEST_SOURCE_DIRECTORY}/ring_test.cpp
