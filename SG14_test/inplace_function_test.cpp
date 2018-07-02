@@ -165,6 +165,51 @@ void Swapping()
     EXPECT_EQ(AnotherFunctor::mDestructorCalls, AnotherFunctor::mConstructorCalls);
 }
 
+auto foobar() {
+    std::string x = "now is the time for all good men to come to the aid of their ";
+    AnotherFunctor f;
+    return [x, f](std::string y) { return x + y; };
+}
+
+template<>
+struct stdext::inplace_function_detail::is_trivially_relocatable<decltype(foobar())> : std::true_type {};
+
+void TrivialSwapping()
+{
+    AnotherFunctor::mDestructorCalls = 0;
+    AnotherFunctor::mConstructorCalls = 0;
+    {
+        stdext::inplace_function<std::string(std::string), 64> fun(foobar());
+        stdext::inplace_function<std::string(std::string), 64> fun2([](std::string y) { return y; });
+
+        int previous_value = AnotherFunctor::mConstructorCalls;
+        fun.swap(fun2);
+        EXPECT_EQ(previous_value, AnotherFunctor::mConstructorCalls);
+
+        EXPECT_EQ("country", fun("country"));
+        EXPECT_EQ("now is the time for all good men to come to the aid of their country", fun2("country"));
+
+    }
+    EXPECT_EQ(AnotherFunctor::mDestructorCalls, AnotherFunctor::mConstructorCalls);
+
+    AnotherFunctor::mDestructorCalls = 0;
+    AnotherFunctor::mConstructorCalls = 0;
+    {
+        std::string x = "hello ";
+        stdext::inplace_function<std::string(std::string), 64> fun(foobar());
+        stdext::inplace_function<std::string(std::string), 64> fun2([x](std::string y) { return x+y; });
+
+        int previous_value = AnotherFunctor::mConstructorCalls;
+        fun.swap(fun2);
+        EXPECT_EQ(previous_value, AnotherFunctor::mConstructorCalls);
+
+        EXPECT_EQ("hello country", fun("country"));
+        EXPECT_EQ("now is the time for all good men to come to the aid of their country", fun2("country"));
+
+    }
+    EXPECT_EQ(AnotherFunctor::mDestructorCalls, AnotherFunctor::mConstructorCalls);
+}
+
 void Copying()
 {
     auto sptr = std::make_shared<int>(42);
@@ -383,6 +428,7 @@ void sg14_test::inplace_function_test()
     Lambda();
     Bind();
     Swapping();
+    TrivialSwapping();
     Copying();
     ContainingStdFunction();
     SimilarTypeCopy();

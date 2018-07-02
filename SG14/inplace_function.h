@@ -77,6 +77,12 @@ template<typename T> struct wrapper
     using type = T;
 };
 
+template<size_t Capacity>
+void trivial_relocate_impl(void *dst_ptr, void *src_ptr)
+{
+    memcpy(dst_ptr, src_ptr, Capacity);
+}
+
 template<typename R, typename... Args> struct vtable
 {
     using storage_ptr_t = void*;
@@ -88,8 +94,8 @@ template<typename R, typename... Args> struct vtable
     const invoke_ptr_t invoke_ptr;
     const process_ptr_t copy_ptr;
     const process_ptr_t move_ptr;
+    const process_ptr_t relocate_ptr;
     const destructor_ptr_t destructor_ptr;
-    const bool is_trivially_relocatable;
 
     explicit constexpr vtable() noexcept :
         invoke_ptr{ [](storage_ptr_t, Args&&...) -> R
@@ -97,8 +103,8 @@ template<typename R, typename... Args> struct vtable
         },
         copy_ptr{ [](storage_ptr_t, storage_ptr_t) noexcept -> void {} },
         move_ptr{ [](storage_ptr_t, storage_ptr_t) noexcept -> void {} },
-        destructor_ptr{ [](storage_ptr_t) noexcept -> void {} },
-        is_trivially_relocatable{ true }
+        relocate_ptr{ [](storage_ptr_t, storage_ptr_t) noexcept -> void {} },
+        destructor_ptr{ [](storage_ptr_t) noexcept -> void {} }
     {}
 
     template<typename C> explicit constexpr vtable(wrapper<C>) noexcept :
@@ -116,12 +122,19 @@ template<typename R, typename... Args> struct vtable
             noexcept(std::is_nothrow_move_constructible<C>::value) -> void
             { new (dst_ptr) C{ std::move(*static_cast<C*>(src_ptr)) }; }
         },
+        relocate_ptr{
+            is_trivially_relocatable<C>::value ?
+            trivial_relocate_impl<sizeof (C)> :
+            [](storage_ptr_t dst_ptr, storage_ptr_t src_ptr)
+              noexcept(std::is_nothrow_move_constructible<C>::value) -> void
+            {
+                new (dst_ptr) C{ std::move(*static_cast<C*>(src_ptr)) };
+                static_cast<C*>(src_ptr)->~C();
+            }
+        },
         destructor_ptr{ [](storage_ptr_t storage_ptr)
             noexcept -> void
             { static_cast<C*>(storage_ptr)->~C(); }
-        },
-        is_trivially_relocatable{
-            inplace_function_detail::is_trivially_relocatable<C>::value
         }
     {}
 
@@ -327,31 +340,21 @@ public:
     {
         if (this == std::addressof(other)) return;
 
-        if (vtable_ptr_->is_trivially_relocatable && other.vtable_ptr_->is_trivially_relocatable) {
-            char tmp[Capacity];
-            memcpy(std::addressof(tmp), std::addressof(storage_), Capacity);
-            memcpy(std::addressof(storage_), std::addressof(other.storage_), Capacity);
-            memcpy(std::addressof(other.storage_), std::addressof(tmp), Capacity);
-        } else {
-            storage_t tmp;
-            vtable_ptr_->move_ptr(
-                std::addressof(tmp),
-                std::addressof(storage_)
-            );
-            vtable_ptr_->destructor_ptr(std::addressof(storage_));
+        storage_t tmp;
+        vtable_ptr_->relocate_ptr(
+            std::addressof(tmp),
+            std::addressof(storage_)
+        );
 
-            other.vtable_ptr_->move_ptr(
-                std::addressof(storage_),
-                std::addressof(other.storage_)
-            );
-            other.vtable_ptr_->destructor_ptr(std::addressof(other.storage_));
+        other.vtable_ptr_->relocate_ptr(
+            std::addressof(storage_),
+            std::addressof(other.storage_)
+        );
 
-            vtable_ptr_->move_ptr(
-                std::addressof(other.storage_),
-                std::addressof(tmp)
-            );
-            vtable_ptr_->destructor_ptr(std::addressof(tmp));
-        }
+        vtable_ptr_->relocate_ptr(
+            std::addressof(other.storage_),
+            std::addressof(tmp)
+        );
 
         std::swap(vtable_ptr_, other.vtable_ptr_);
     }
