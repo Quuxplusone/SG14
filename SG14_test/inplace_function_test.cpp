@@ -407,6 +407,13 @@ void test_move_construction_is_noexcept()
     EXPECT_EQ(1, moved);
 }
 
+static void test_void_returning_function()
+{
+    stdext::inplace_function<void()> f = []() { return 42; };
+    f = []() { return 42; };
+    f();
+}
+
 void sg14_test::inplace_function_test()
 {
     // first set of tests (from Optiver)
@@ -488,6 +495,7 @@ void sg14_test::inplace_function_test()
     test_exception_safety();
     test_nullptr();
     test_overloaded_operator_new();
+    test_void_returning_function();
     test_move_construction_is_noexcept();
 }
 
