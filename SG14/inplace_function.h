@@ -150,6 +150,41 @@ struct is_valid_inplace_dst : std::true_type
     );
 };
 
+#if __cpp_lib_is_invocable >= 201703L
+using std::is_invocable_r;
+#else
+template<class Void, class F, class... Args>
+struct is_invocable_helper : std::false_type {};
+
+template<class F, class... Args>
+struct is_invocable_helper<decltype(std::declval<F()>()()(std::declval<Args>()...), void()), F, Args...> : std::true_type {};
+
+template<class F, class... Args>
+struct is_invocable : is_invocable_helper<void, F, Args...> {};
+
+template<class Void, class R, class F, class... Args>
+struct is_invocable_r_helper : std::false_type {};
+
+template<class R, class F, class... Args>
+struct is_invocable_r_helper<decltype(std::declval<F()>()()(std::declval<Args>()...), void()), R, F, Args...> : std::is_convertible<decltype(std::declval<F()>()()(std::declval<Args>()...)), R> {};
+
+template<class R, class F, class... Args>
+struct is_invocable_r : is_invocable_r_helper<void, R, F, Args...> {};
+
+template<class F, class... Args> struct is_invocable_r<void, F, Args...> : is_invocable<F, Args...> {};
+template<class F, class... Args> struct is_invocable_r<const void, F, Args...> : is_invocable<F, Args...> {};
+template<class F, class... Args> struct is_invocable_r<volatile void, F, Args...> : is_invocable<F, Args...> {};
+template<class F, class... Args> struct is_invocable_r<const volatile void, F, Args...> : is_invocable<F, Args...> {};
+
+static_assert(is_invocable<int(*)(int), int>::value, "sanity check");
+static_assert(is_invocable_r<int*, int*(*)(int), int>::value, "sanity check");
+static_assert(is_invocable_r<void, int*(*)(int), int>::value, "sanity check");
+static_assert(is_invocable_r<void, void(*)(int), int>::value, "sanity check");
+static_assert(!is_invocable_r<int, void(*)(int), int>::value, "sanity check");
+static_assert(!is_invocable_r<void, void(*)(int)>::value, "sanity check");
+static_assert(is_invocable_r<void, void(*)()>::value, "sanity check");
+#endif
+
 } // namespace inplace_function_detail
 
 template<
@@ -187,12 +222,16 @@ public:
         typename = std::enable_if_t<
             !(std::is_same<C, inplace_function>::value
             || std::is_convertible<C, inplace_function>::value)
+        >,
+        typename = std::enable_if_t<
+            inplace_function_detail::is_invocable_r<R, C&, Args...>::value
         >
     >
     inplace_function(T&& closure)
     {
-#if __cplusplus >= 201703L
-        static_assert(std::is_invocable_r<R, C, Args...>::value,
+#if __cpp_lib_is_invocable >= 201703L
+        static_assert(std::is_invocable_r<R, C&, Args...>::value,
+            // SFINAE should prevent this assertion from ever triggering anymore.
             "inplace_function cannot be constructed from non-callable type"
         );
 #endif

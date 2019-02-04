@@ -414,6 +414,35 @@ static void test_void_returning_function()
     f();
 }
 
+template<class FirstSig, class OtherSig>
+struct test_sfinae_helper {
+    static bool accepts(stdext::inplace_function<FirstSig>) {
+        return true;
+    }
+    static bool accepts(stdext::inplace_function<OtherSig>) {
+        return false;
+    }
+};
+
+void test_sfinae_on_noncallable()
+{
+    if (true) {
+        test_sfinae_helper<void(), void(size_t)> tester;
+        assert(tester.accepts([](){ }) == true);
+        assert(tester.accepts([](size_t){ }) == false);
+    }
+    if (true) {
+        test_sfinae_helper<int*(), int()> tester;
+        assert(tester.accepts([](){ return nullptr; }) == true);
+        assert(tester.accepts([](){ return 42; }) == false);
+    }
+    if (true) {
+        test_sfinae_helper<void(), int()> tester;
+        assert(tester.accepts([](){ return; }) == true);
+        assert(tester.accepts([](){ return nullptr; }) == true);
+    }
+}
+
 void sg14_test::inplace_function_test()
 {
     // first set of tests (from Optiver)
@@ -497,6 +526,7 @@ void sg14_test::inplace_function_test()
     test_overloaded_operator_new();
     test_void_returning_function();
     test_move_construction_is_noexcept();
+    test_sfinae_on_noncallable();
 }
 
 #ifdef TEST_MAIN
