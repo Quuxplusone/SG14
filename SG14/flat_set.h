@@ -36,7 +36,12 @@
 #include <iterator>
 #include <vector>
 
+#include <cassert>  // TODO remove this
+#include <iostream> // TODO remove this
+
 namespace stdext {
+
+template<class, class, class> class flat_set;
 
 namespace flatset_detail {
     template<class T, class = void> struct qualifies_as_range : std::false_type {};
@@ -130,6 +135,181 @@ namespace flatset_detail {
     struct is_nothrow_swappable<T, std::integral_constant<bool, noexcept(swap(std::declval<T&>(), std::declval<T&>()))>> : std::true_type {};
 #endif
 
+    template<class It>
+    class iter {
+    public:
+        using difference_type = ptrdiff_t;
+        using value_type = typename std::iterator_traits<It>::value_type;
+        using reference = typename std::iterator_traits<It>::reference;
+        using pointer = typename std::iterator_traits<It>::pointer;
+        using iterator_category = std::random_access_iterator_tag;
+
+        iter() = default;
+        iter(iter&&) = default;
+        iter(const iter&) = default;
+        iter& operator=(iter&&) = default;
+        iter& operator=(const iter&) = default;
+        ~iter() = default;
+
+        // This is the iterator-to-const_iterator implicit conversion.
+        template<class Jt,
+                 class = std::enable_if_t<std::is_convertible<Jt, It>::value>>
+        iter(const iter<Jt>& other) :
+            begin_(other.private_impl_getbegin()), index_(other.private_impl_getindex()), n_(other.private_impl_getn()) {}
+
+        It base() const noexcept { return begin_ + index_; }
+
+        reference operator*() const {
+            return *base();
+        }
+
+        template<class It_ = It, class = decltype(std::declval<It_>().operator->())>
+        pointer operator->() const {
+            return base().operator->();
+        }
+
+        template<class It_ = It, std::enable_if_t<std::is_pointer<It_>::value, int> = 0>
+        pointer operator->() const {
+            return base();
+        }
+
+        static int getparent(int i) { return (i - 1) / 2; }
+        static int getleft(int i) { return 2*i + 1; }
+        static int getright(int i) { return 2*i + 2; }
+        static bool isleftchild(int i) { return i % 2 == 1; }
+        static bool isrightchild(int i) { return i % 2 == 0; }
+
+        bool has_left_child() const { return getleft(index_) < n_; }
+        bool has_right_child() const { return getright(index_) < n_; }
+        void step_left() { index_ = getleft(index_); }
+        void step_right() { index_ = getright(index_); }
+
+        iter& operator++() {
+            if (getright(index_) < n_) {
+                index_ = getright(index_);
+                while (getleft(index_) < n_) {
+                    index_ = getleft(index_);
+                }
+            } else {
+                while (isrightchild(index_)) {
+                    if (index_ == 0) {
+                        index_ = n_;  // the special "end" index
+                        return *this;
+                    }
+                    index_ = getparent(index_);
+                }
+                index_ = getparent(index_);
+            }
+            return *this;
+        }
+
+        iter& operator--() {
+            if (index_ == n_) {
+                index_ = 0;
+                while (getright(index_) < n_) {
+                    index_ = getright(index_);
+                }
+            } else if (getleft(index_) < n_) {
+                index_ = getleft(index_);
+                while (getright(index_) < n_) {
+                    index_ = getright(index_);
+                }
+            } else {
+                while (isleftchild(index_)) {
+                    index_ = getparent(index_);
+                }
+                index_ = getparent(index_);
+            }
+            return *this;
+        }
+
+        iter operator++(int) { iter result(*this); ++*this; return result; }
+        iter operator--(int) { iter result(*this); --*this; return result; }
+        iter& operator+=(ptrdiff_t n) {
+            if (n < 0) *this -= -n;
+            else while (n-- != 0) ++*this;
+            return *this;
+        }
+        iter& operator-=(ptrdiff_t n) {
+            if (n < 0) *this += -n;
+            else while (n-- != 0) --*this;
+            return *this;
+        }
+        reference operator[](ptrdiff_t n) const { return *(*this + n); }
+        friend iter operator+(iter it, ptrdiff_t n) { it += n; return it; }
+        friend iter operator+(ptrdiff_t n, iter it) { it += n; return it; }
+        friend iter operator-(iter it, ptrdiff_t n) { it -= n; return it; }
+        friend ptrdiff_t operator-(const iter& it, const iter& jt) {
+            /* TODO FIXME BUG HACK -- this is horribly slow */
+            int result = 0;
+            auto kt = jt;
+            while (kt.index_ != kt.n_ && kt != it) { ++kt; ++result; }
+            if (kt == it) return result;
+            result = 0;
+            kt = it;
+            while (kt.index_ != kt.n_ && kt != jt) { ++kt; --result; }
+            assert(kt == jt);
+            return result;
+        }
+        friend bool operator==(const iter& a, const iter& b) { return a.index_ == b.index_; }
+        friend bool operator!=(const iter& a, const iter& b) { return !(a.index_ == b.index_); }
+        friend bool operator<(const iter& a, const iter& b) { return (a - b) < 0; }
+        friend bool operator<=(const iter& a, const iter& b) { return (a - b) <= 0; }
+        friend bool operator>(const iter& a, const iter& b) { return (a - b) > 0; }
+        friend bool operator>=(const iter& a, const iter& b) { return (a - b) >= 0; }
+
+        friend std::ostream& operator<<(std::ostream& os, const iter& it) {
+            // TODO remove this
+            os << "(" << it.index_ << "/" << it.n_ << ")";
+            return os;
+        }
+
+        It private_impl_getbegin() const { return begin_; }
+        int private_impl_getindex() const { return index_; }
+        int private_impl_getn() const { return n_; }
+
+    private:
+        template<class, class, class> friend class stdext::flat_set;
+
+        explicit iter(It&& begin, int idx, int n)
+            : begin_(static_cast<It&&>(begin)), index_(idx), n_(n) {}
+
+        It begin_;
+        int index_;
+        int n_;
+    };
+
+    template<class RandomIt>
+    void invert_faro_shuffle(RandomIt first, RandomIt last) {
+        // Transforms [a0 b0 a1 b1 ... an-1 bn-1 an] to [a0 a1 ... an b0 b1 ... bn-1].
+        auto n = last - first;
+        assert(n % 2 == 1);
+        if (n >= 3) {
+            auto half = (n + 1) >> 1;
+            auto quarter = half >> 1;
+            invert_faro_shuffle(first, first + (quarter + quarter - 1));
+            invert_faro_shuffle(first + (quarter + quarter), last);
+            std::rotate(first + quarter, first + (quarter + quarter), first + (half + quarter));
+        }
+    }
+
+    template<class RandomIt>
+    void make_levelorder_from_sorted(RandomIt first, RandomIt last) {
+        auto n = last - first;
+        using IndexType = decltype(n);
+        int height = 1;
+        while (n >= IndexType(1u << height)) {
+            ++height;
+        }
+        for (int level = height-1; level != 0; --level) {
+            IndexType pow2level = (1u << level);
+            IndexType effective_size = std::min(2*pow2level - 1, n);
+            IndexType leaf_count = std::min(pow2level, n + 1 - pow2level);
+            invert_faro_shuffle(first, first + (2*leaf_count - 1));
+            std::rotate(first, first + leaf_count, first + effective_size);
+        }
+    }
+
 } // namespace flatset_detail
 
 #ifndef STDEXT_HAS_SORTED_UNIQUE
@@ -165,8 +345,8 @@ public:
     using const_reference = const Key&;
     using size_type = size_t; // TODO: this should be KeyContainer::size_type
     using difference_type = ptrdiff_t; // TODO: this should be KeyContainer::difference_type
-    using iterator = typename KeyContainer::iterator;
-    using const_iterator = typename KeyContainer::const_iterator;
+    using iterator = flatset_detail::iter<typename KeyContainer::iterator>;
+    using const_iterator = flatset_detail::iter<typename KeyContainer::const_iterator>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     using container_type = KeyContainer;
@@ -179,7 +359,7 @@ public:
     explicit flat_set(KeyContainer ctr)
         : c_(static_cast<KeyContainer&&>(ctr)), compare_()
     {
-        this->sort_and_unique_impl();
+        this->sort_and_unique_and_levelorder_impl();
     }
 
     template<class Alloc,
@@ -187,7 +367,7 @@ public:
     flat_set(KeyContainer ctr, const Alloc& a)
         : c_(flatset_detail::make_obj_using_allocator<KeyContainer>(a, static_cast<KeyContainer&&>(ctr))), compare_()
     {
-        this->sort_and_unique_impl();
+        this->sort_and_unique_and_levelorder_impl();
     }
 
     template<class Container,
@@ -211,12 +391,18 @@ public:
         : flat_set(std::begin(cont), std::end(cont), comp, a) {}
 
     flat_set(sorted_unique_t, KeyContainer ctr)
-        : c_(static_cast<KeyContainer&&>(ctr)), compare_() {}
+        : c_(static_cast<KeyContainer&&>(ctr)), compare_()
+    {
+        flatset_detail::make_levelorder_from_sorted(c_.begin(), c_.end());
+    }
 
     template<class Alloc,
              class = std::enable_if_t<std::uses_allocator<KeyContainer, Alloc>::value>>
     flat_set(sorted_unique_t, KeyContainer ctr, const Alloc& a)
-        : c_(flatset_detail::make_obj_using_allocator<KeyContainer>(a, static_cast<KeyContainer&&>(ctr))), compare_() {}
+        : c_(flatset_detail::make_obj_using_allocator<KeyContainer>(a, static_cast<KeyContainer&&>(ctr))), compare_()
+    {
+        flatset_detail::make_levelorder_from_sorted(c_.begin(), c_.end());
+    }
 
     template<class Container,
              class = std::enable_if_t<flatset_detail::qualifies_as_range<const Container&>::value>>
@@ -256,7 +442,7 @@ public:
     flat_set(InputIterator first, InputIterator last, const Compare& comp = Compare())
         : c_(first, last), compare_(comp)
     {
-        this->sort_and_unique_impl();
+        this->sort_and_unique_and_levelorder_impl();
     }
 
     // TODO: this constructor could conditionally use KeyContainer's iterator-pair constructor
@@ -269,7 +455,7 @@ public:
             c_.insert(c_.end(), *first);
             ++first;
         }
-        this->sort_and_unique_impl();
+        this->sort_and_unique_and_levelorder_impl();
     }
 
     template<class InputIterator, class Alloc,
@@ -279,7 +465,10 @@ public:
 
     template<class InputIterator>
     flat_set(sorted_unique_t, InputIterator first, InputIterator last, const Compare& comp = Compare())
-        : c_(first, last), compare_(comp) {}
+        : c_(first, last), compare_(comp)
+    {
+        flatset_detail::make_levelorder_from_sorted(c_.begin(), c_.end());
+    }
 
     // TODO: this constructor could conditionally use KeyContainer's iterator-pair constructor
     template<class InputIterator, class Alloc,
@@ -292,6 +481,7 @@ public:
             c_.insert(c_.end(), *first);
             ++first;
         }
+        flatset_detail::make_levelorder_from_sorted(c_.begin(), c_.end());
     }
 
     template<class InputIterator, class Alloc,
@@ -345,13 +535,13 @@ public:
         return *this;
     }
 
-    iterator begin() noexcept { return c_.begin(); }
-    const_iterator begin() const noexcept { return c_.begin(); }
-    iterator end() noexcept { return c_.end(); }
-    const_iterator end() const noexcept { return c_.end(); }
+    iterator begin() noexcept { iterator it(c_.begin(), 0, c_.size()); while (it.has_left_child()) it.step_left(); return it; }
+    const_iterator begin() const noexcept { const_iterator it(c_.begin(), 0, c_.size()); while (it.has_left_child()) it.step_left(); return it; }
+    iterator end() noexcept { return iterator(c_.begin(), c_.size(), c_.size()); }
+    const_iterator end() const noexcept { return const_iterator(c_.begin(), c_.size(), c_.size()); }
 
-    const_iterator cbegin() const noexcept { return c_.begin(); }
-    const_iterator cend() const noexcept { return c_.end(); }
+    const_iterator cbegin() const noexcept { return begin(); }
+    const_iterator cend() const noexcept { return end(); }
 
     reverse_iterator rbegin() noexcept { return std::make_reverse_iterator(end()); }
     const_reverse_iterator rbegin() const noexcept { return std::make_reverse_iterator(end()); }
@@ -368,6 +558,25 @@ public:
     size_type size() const noexcept { return c_.size(); }
     size_type max_size() const noexcept { return c_.max_size(); }
 
+    template<class F>
+    std::pair<iterator, bool> private_impl_emplace(const Key& t, const F& emplacer) {
+        auto it = this->lower_bound(t);
+        if (it == end() || compare_(t, *it)) {
+            auto count = it - begin();
+            emplacer();
+            auto first = begin() + count;
+            auto nfirst = iterator(c_.begin(), c_.size() - 1, c_.size());
+            if (first <= nfirst) {
+                std::rotate(first, nfirst, std::next(nfirst));
+            } else {
+                std::rotate(nfirst, std::next(nfirst), std::next(first));
+            }
+            return {first, true};
+        } else {
+            return {it, false};
+        }
+    }
+
     template<class... Args>
     std::pair<iterator, bool> emplace(Args&&... args) {
         Key t(static_cast<Args&&>(args)...);
@@ -380,23 +589,17 @@ public:
     }
 
     std::pair<iterator, bool> insert(const Key& t) {
-        auto it = this->lower_bound(t);
-        if (it == c_.end() || compare_(t, *it)) {
-            it = c_.emplace(it, t);
-            return {it, true};
-        } else {
-            return {it, false};
-        }
+        return this->private_impl_emplace(
+            t,
+            [&]() { c_.emplace(c_.end(), t); }
+        );
     }
 
     std::pair<iterator, bool> insert(Key&& t) {
-        auto it = this->lower_bound(t);
-        if (it == c_.end() || compare_(t, *it)) {
-            it = c_.emplace(it, static_cast<Key&&>(t));
-            return {it, true};
-        } else {
-            return {it, false};
-        }
+        return this->private_impl_emplace(
+            t,
+            [&]() { c_.emplace(c_.end(), static_cast<Key&&>(t)); }
+        );
     }
 
     iterator insert(const_iterator, const Key& t) {
@@ -409,70 +612,19 @@ public:
 
     template<class InputIterator>
     void insert(InputIterator first, InputIterator last) {
-        auto original_size = c_.size();
-        try {
-            while (first != last) {
-                Key t(*first);
-                auto it = std::partition_point(
-                    c_.begin(), c_.begin() + original_size,
-                    [&](const auto& elt) {
-                        return bool(compare_(elt, t));
-                    }
-                );
-                if (it != c_.begin() + original_size && !bool(compare_(t, *it))) {
-                    // we already have a copy of this element; move on
-                } else {
-                    // we will need to insert this element; shove it on the back and move on
-                    c_.emplace(c_.end(), std::move(t));
-                }
-                ++first;
-            }
-        } catch (...) {
-            // If an exception is thrown, we can just erase the elements we inserted
-            // to restore our invariant. We assume that KeyContainer::erase() doesn't throw.
-            auto original_end = c_.begin() + original_size;
-            c_.erase(original_end, c_.end());
-            throw;
-        }
-        if (c_.size() != original_size) {
-            // At this point we have a uniqued, but not sorted, underlying container.
-            this->sort_or_clear_impl();
+        // TODO: this is horribly slow
+        while (first != last) {
+            this->insert(*first);
+            ++first;
         }
     }
 
     template<class InputIterator>
     void insert(sorted_unique_t, InputIterator first, InputIterator last) {
-        auto original_size = c_.size();
-        try {
-            auto kit = c_.begin();
-            auto original_end = c_.begin() + original_size;
-            while (first != last) {
-                Key t(*first);
-                while ((kit != original_end) && bool(compare_(*kit, t))) {
-                    // we have not reached the next insertion point yet
-                    ++kit;
-                }
-                if ((kit != original_end) && !bool(compare_(t, *kit))) {
-                    // we already have a copy of this element; move on
-                } else {
-                    // we will need to insert this element; shove it on the back and move on
-                    auto idx = kit - c_.begin();
-                    c_.emplace(c_.end(), std::move(t));
-                    kit = c_.begin() + idx;
-                    original_end = c_.begin() + original_size;
-                }
-                ++first;
-            }
-        } catch (...) {
-            // If an exception is thrown, we can just erase the elements we inserted
-            // to restore our invariant. We assume that KeyContainer::erase() doesn't throw.
-            auto original_end = c_.begin() + original_size;
-            c_.erase(original_end, c_.end());
-            throw;
-        }
-        if (c_.size() != original_size) {
-            // At this point we have a uniqued, but not sorted, underlying container.
-            this->sort_or_clear_impl();
+        // TODO: this is horribly slow
+        while (first != last) {
+            this->insert(*first);
+            ++first;
         }
     }
 
@@ -482,6 +634,11 @@ public:
 
     void insert(sorted_unique_t s, std::initializer_list<Key> il) {
         this->insert(s, il.begin(), il.end());
+    }
+
+    // TODO: this is just for debugging
+    const KeyContainer& container() const noexcept {
+        return c_;
     }
 
     KeyContainer extract() && {
@@ -495,11 +652,19 @@ public:
     }
 
     iterator erase(iterator position) {
-        return c_.erase(position);
+        // TODO: this is horribly slow
+        int count = position - begin();
+        c_.erase(position.base());
+        sort_and_levelorder_impl();
+        return begin() + count;
     }
 
     iterator erase(const_iterator position) {
-        return c_.erase(position);
+        // TODO: this is horribly slow
+        int count = position - begin();
+        c_.erase(position.base());
+        sort_and_levelorder_impl();
+        return begin() + count;
     }
 
     size_type erase(const Key& t) {
@@ -512,7 +677,11 @@ public:
     }
 
     iterator erase(const_iterator first, const_iterator last) {
-        return c_.erase(first, last);
+        int n = last - first;
+        for (int i=0; i < n; ++i) {
+            first = this->erase(first);
+        }
+        return begin() + (first - begin());
     }
 
     void swap(flat_set& m)
@@ -587,121 +756,164 @@ public:
     }
 
     iterator lower_bound(const Key& t) {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, t));
-        });
+        if (c_.size() == 0) {
+            return end();
+        }
+
+        iterator it = iterator(c_.begin(), 0, c_.size());
+        while (true) {
+            if (compare_(*it, t)) {
+                if (it.has_right_child()) {
+                    it.step_right();
+                } else {
+                    return std::next(it);
+                }
+            } else {
+                if (it.has_left_child()) {
+                    it.step_left();
+                } else {
+                    return it;
+                }
+            }
+        }
     }
 
     const_iterator lower_bound(const Key& t) const {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, t));
-        });
+        return const_cast<flat_set*>(this)->lower_bound(t);
     }
 
     template<class K,
              class Compare_ = Compare, class = typename Compare_::is_transparent>
     iterator lower_bound(const K& x) {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, x));
-        });
+        if (c_.size() == 0) {
+            return end();
+        }
+
+        iterator it = iterator(c_.begin(), 0, c_.size());
+        while (true) {
+            if (compare_(*it, x)) {
+                if (it.has_right_child()) {
+                    it.step_right();
+                } else {
+                    return std::next(it);
+                }
+            } else {
+                if (it.has_left_child()) {
+                    it.step_left();
+                } else {
+                    return it;
+                }
+            }
+        }
     }
 
     template<class K,
              class Compare_ = Compare, class = typename Compare_::is_transparent>
     const_iterator lower_bound(const K& x) const {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, x));
-        });
+        return const_cast<flat_set*>(this)->lower_bound(x);
     }
 
     iterator upper_bound(const Key& t) {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return !bool(compare_(t, elt));
-        });
+        if (c_.size() == 0) {
+            return end();
+        }
+
+        iterator it = iterator(c_.begin(), 0, c_.size());
+        while (true) {
+            if (compare_(t, *it)) {
+                if (it.has_left_child()) {
+                    it.step_left();
+                } else {
+                    return it;
+                }
+            } else {
+                if (it.has_right_child()) {
+                    it.step_right();
+                } else {
+                    return std::next(it);
+                }
+            }
+        }
     }
 
     const_iterator upper_bound(const Key& t) const {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return !bool(compare_(t, elt));
-        });
+        return const_cast<flat_set*>(this)->upper_bound(t);
     }
 
     template<class K,
              class Compare_ = Compare, class = typename Compare_::is_transparent>
     iterator upper_bound(const K& x) {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return !bool(compare_(x, elt));
-        });
+        if (c_.size() == 0) {
+            return end();
+        }
+
+        iterator it = iterator(c_.begin(), 0, c_.size());
+        while (true) {
+            if (compare_(x, *it)) {
+                if (it.has_left_child()) {
+                    it.step_left();
+                } else {
+                    return it;
+                }
+            } else {
+                if (it.has_right_child()) {
+                    it.step_right();
+                } else {
+                    return std::next(it);
+                }
+            }
+        }
     }
 
     template<class K,
              class Compare_ = Compare, class = typename Compare_::is_transparent>
     const_iterator upper_bound(const K& x) const {
-        return std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return !bool(compare_(x, elt));
-        });
+        return const_cast<flat_set*>(this)->upper_bound(x);
     }
 
     std::pair<iterator, iterator> equal_range(const Key& t) {
-        auto lo = std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, t));
-        });
-        auto hi = std::partition_point(lo, this->end(), [&](const auto& elt) {
-            return !bool(compare_(t, elt));
-        });
-        return { lo, hi };
+        return {
+            this->lower_bound(t),
+            this->upper_bound(t)
+        };
     }
 
     std::pair<const_iterator, const_iterator> equal_range(const Key& t) const {
-        auto lo = std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, t));
-        });
-        auto hi = std::partition_point(lo, this->end(), [&](const auto& elt) {
-            return !bool(compare_(t, elt));
-        });
-        return { lo, hi };
+        return {
+            this->lower_bound(t),
+            this->upper_bound(t)
+        };
     }
 
     template<class K,
              class Compare_ = Compare, class = typename Compare_::is_transparent>
     std::pair<iterator, iterator> equal_range(const K& x) {
-        auto lo = std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, x));
-        });
-        auto hi = std::partition_point(lo, this->end(), [&](const auto& elt) {
-            return !bool(compare_(x, elt));
-        });
-        return { lo, hi };
+        return {
+            this->lower_bound(x),
+            this->upper_bound(x)
+        };
     }
 
     template<class K,
              class Compare_ = Compare, class = typename Compare_::is_transparent>
     std::pair<const_iterator, const_iterator> equal_range(const K& x) const {
-        auto lo = std::partition_point(this->begin(), this->end(), [&](const auto& elt) {
-            return bool(compare_(elt, x));
-        });
-        auto hi = std::partition_point(lo, this->end(), [&](const auto& elt) {
-            return !bool(compare_(x, elt));
-        });
-        return { lo, hi };
+        return {
+            this->lower_bound(x),
+            this->upper_bound(x)
+        };
     }
 
 private:
-    void sort_and_unique_impl() {
+    void sort_and_unique_and_levelorder_impl() {
         std::sort(c_.begin(), c_.end(), compare_);
         auto it = flatset_detail::unique_helper(c_.begin(), c_.end(), compare_);
         c_.erase(it, c_.end());
+        flatset_detail::make_levelorder_from_sorted(c_.begin(), c_.end());
     }
 
-    void sort_or_clear_impl() {
-        try {
-            std::sort(begin(), end(), compare_);
-        } catch (...) {
-            // If an exception is thrown, we can't do much of anything to restore our
-            // invariant except to clear the entire container. TODO: this is terrible.
-            c_.clear();
-            throw;
-        }
+    void sort_and_levelorder_impl() {
+        std::sort(c_.begin(), c_.end(), compare_);
+        flatset_detail::make_levelorder_from_sorted(c_.begin(), c_.end());
     }
 
     KeyContainer c_;

@@ -178,7 +178,7 @@ static void MoveOperationsPilferOwnership()
     InstrumentedWidget::move_ctors = 0;
 
     fs.emplace("def");  // is still not directly emplaced; a temporary is created to find()
-    assert(InstrumentedWidget::move_ctors == 1);
+    assert(InstrumentedWidget::move_ctors >= 1);
     assert(InstrumentedWidget::copy_ctors == 0);
     InstrumentedWidget::move_ctors = 0;
 
