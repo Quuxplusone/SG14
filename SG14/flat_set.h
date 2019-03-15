@@ -36,7 +36,6 @@
 #include <iterator>
 #include <vector>
 
-#include <cassert>  // TODO remove this
 #include <iostream> // TODO remove this
 
 namespace stdext {
@@ -44,6 +43,9 @@ namespace stdext {
 template<class, class, class> class flat_set;
 
 namespace flatset_detail {
+
+#include "eytzinger_utils.h"
+
     template<class T, class = void> struct qualifies_as_range : std::false_type {};
     template<class T> struct qualifies_as_range<T, decltype(
         std::begin( std::declval<T()>()() ), void(),
@@ -226,13 +228,15 @@ namespace flatset_detail {
         iter operator++(int) { iter result(*this); ++*this; return result; }
         iter operator--(int) { iter result(*this); --*this; return result; }
         iter& operator+=(ptrdiff_t n) {
-            if (n < 0) *this -= -n;
-            else while (n-- != 0) ++*this;
+            int i = rank_from_eytzinger(index_, n_);
+            i += n;
+            index_ = eytzinger_from_rank(i, n_);
             return *this;
         }
         iter& operator-=(ptrdiff_t n) {
-            if (n < 0) *this += -n;
-            else while (n-- != 0) --*this;
+            int i = rank_from_eytzinger(index_, n_);
+            i -= n;
+            index_ = eytzinger_from_rank(i, n_);
             return *this;
         }
         reference operator[](ptrdiff_t n) const { return *(*this + n); }
@@ -240,16 +244,9 @@ namespace flatset_detail {
         friend iter operator+(ptrdiff_t n, iter it) { it += n; return it; }
         friend iter operator-(iter it, ptrdiff_t n) { it -= n; return it; }
         friend ptrdiff_t operator-(const iter& it, const iter& jt) {
-            /* TODO FIXME BUG HACK -- this is horribly slow */
-            int result = 0;
-            auto kt = jt;
-            while (kt.index_ != kt.n_ && kt != it) { ++kt; ++result; }
-            if (kt == it) return result;
-            result = 0;
-            kt = it;
-            while (kt.index_ != kt.n_ && kt != jt) { ++kt; --result; }
-            assert(kt == jt);
-            return result;
+            int i = rank_from_eytzinger(it.index_, it.n_);
+            int j = rank_from_eytzinger(jt.index_, jt.n_);
+            return i - j;
         }
         friend bool operator==(const iter& a, const iter& b) { return a.index_ == b.index_; }
         friend bool operator!=(const iter& a, const iter& b) { return !(a.index_ == b.index_); }
@@ -283,7 +280,7 @@ namespace flatset_detail {
     void invert_faro_shuffle(RandomIt first, RandomIt last) {
         // Transforms [a0 b0 a1 b1 ... an-1 bn-1 an] to [a0 a1 ... an b0 b1 ... bn-1].
         auto n = last - first;
-        assert(n % 2 == 1);
+        // assert(n % 2 == 1);
         if (n >= 3) {
             auto half = (n + 1) >> 1;
             auto quarter = half >> 1;
@@ -298,7 +295,7 @@ namespace flatset_detail {
         auto n = last - first;
         using IndexType = decltype(n);
         int height = 1;
-        while (n >= IndexType(1u << height)) {
+        while (IndexType(1u << height) <= n) {
             ++height;
         }
         for (int level = height-1; level != 0; --level) {
