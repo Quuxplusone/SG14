@@ -15,6 +15,12 @@
  #include "flatset-unsorted.h"
 #undef stdext
 #undef STDEXT_HAS_SORTED_UNIQUE
+#define stdext stdext5
+#define FLATSET_PREFETCH 1
+ #include "flatset-levelorder-faro.h"
+#undef FLATSET_PREFETCH
+#undef stdext
+#undef STDEXT_HAS_SORTED_UNIQUE
 
 #include <benchmark/benchmark.h>
 #include <boost/container/flat_set.hpp>
@@ -119,6 +125,7 @@ using FSSorted = stdext1::flat_set<int>;
 using FSFaro = stdext2::flat_set<int>;
 using FSPermute = stdext3::flat_set<int>;
 using FSUnsorted = stdext4::flat_set<int>;
+using FSFaroPrefetch = stdext5::flat_set<int>;
 using FSBoost = boost::container::flat_set<int>;
 
 #if 1
@@ -156,6 +163,13 @@ BENCHMARK_TEMPLATE(single_deletion, FSFaro)->Arg(10'000);
 #endif
 BENCHMARK_TEMPLATE(searching, FSFaro)->Arg(100'000);
 BENCHMARK_TEMPLATE(iteration, FSFaro)->Arg(100'000);
+#if 1
+BENCHMARK_TEMPLATE(single_insertion, FSFaroPrefetch)->Arg(10'000);
+BENCHMARK_TEMPLATE(range_insertion, FSFaroPrefetch)->Arg(10'000);
+BENCHMARK_TEMPLATE(single_deletion, FSFaroPrefetch)->Arg(10'000);
+#endif
+BENCHMARK_TEMPLATE(searching, FSFaroPrefetch)->Arg(100'000);
+BENCHMARK_TEMPLATE(iteration, FSFaroPrefetch)->Arg(100'000);
 #if 1
 BENCHMARK_TEMPLATE(single_insertion, FSPermute)->Arg(10'000);
 BENCHMARK_TEMPLATE(range_insertion, FSPermute)->Arg(10'000);

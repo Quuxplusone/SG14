@@ -759,6 +759,13 @@ public:
 
         iterator it = iterator(c_.begin(), 0, c_.size());
         while (true) {
+#if FLATSET_PREFETCH
+            if (it.has_left_child()) {
+                auto next = it;
+                next.step_left();
+                __builtin_prefetch(&*next);
+            }
+#endif
             if (compare_(*it, t)) {
                 if (it.has_right_child()) {
                     it.step_right();
