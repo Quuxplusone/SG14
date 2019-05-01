@@ -509,15 +509,6 @@ static void test_return_by_move()
     assert(InstrumentedCopyConstructor::moves == 1);
 }
 
-namespace
-{
-    struct NoDefaultCtor
-    {
-        int val;
-        explicit NoDefaultCtor(int v) : val{v} {}
-    };
-} // anonymous namespace
-
 static int overloaded_function(stdext::inplace_function<int()>&& exec)
 {
     return exec();
@@ -570,6 +561,11 @@ static void test_is_invocable()
 
 static void test_overloading()
 {
+    struct NoDefaultCtor {
+        int val;
+        explicit NoDefaultCtor(int v) : val{v} {}
+    };
+
     EXPECT_EQ(overloaded_function([]() -> int { return 3; }), 3);
     EXPECT_EQ(overloaded_function([](int arg) -> int { return arg; }), 42);
 
