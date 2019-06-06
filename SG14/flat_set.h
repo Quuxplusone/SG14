@@ -170,11 +170,21 @@ public:
         this->sort_and_unique_impl();
     }
 
-    // TODO: surely this should be using uses-allocator construction
     template<class Alloc,
              class = std::enable_if_t<std::uses_allocator<KeyContainer, Alloc>::value>>
-    flat_set(KeyContainer ctr, const Alloc& a)
-        : flat_set(KeyContainer(static_cast<KeyContainer&&>(ctr), a)) {}
+    flat_set(KeyContainer&& ctr, const Alloc& a)
+        : c_(flatset_detail::make_obj_using_allocator<KeyContainer>(a, static_cast<KeyContainer&&>(ctr))), compare_()
+    {
+        this->sort_and_unique_impl();
+    }
+
+    template<class Alloc,
+             class = std::enable_if_t<std::uses_allocator<KeyContainer, Alloc>::value>>
+    flat_set(const KeyContainer& ctr, const Alloc& a)
+        : c_(flatset_detail::make_obj_using_allocator<KeyContainer>(a, ctr)), compare_()
+    {
+        this->sort_and_unique_impl();
+    }
 
     template<class Container,
              std::enable_if_t<flatset_detail::qualifies_as_range<const Container&>::value, int> = 0>
@@ -199,11 +209,15 @@ public:
     flat_set(sorted_unique_t, KeyContainer ctr)
         : c_(static_cast<KeyContainer&&>(ctr)), compare_() {}
 
-    // TODO: surely this should be using uses-allocator construction
     template<class Alloc,
              class = std::enable_if_t<std::uses_allocator<KeyContainer, Alloc>::value>>
-    flat_set(sorted_unique_t s, KeyContainer ctr, const Alloc& a)
-        : flat_set(s, KeyContainer(static_cast<KeyContainer&&>(ctr), a)) {}
+    flat_set(sorted_unique_t, KeyContainer&& ctr, const Alloc& a)
+        : c_(flatset_detail::make_obj_using_allocator<KeyContainer>(a, static_cast<KeyContainer&&>(ctr))), compare_() {}
+
+    template<class Alloc,
+             class = std::enable_if_t<std::uses_allocator<KeyContainer, Alloc>::value>>
+    flat_set(sorted_unique_t, const KeyContainer& ctr, const Alloc& a)
+        : c_(flatset_detail::make_obj_using_allocator<KeyContainer>(a, ctr)), compare_() {}
 
     template<class Container,
              class = std::enable_if_t<flatset_detail::qualifies_as_range<const Container&>::value>>
