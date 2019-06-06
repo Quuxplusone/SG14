@@ -51,8 +51,6 @@ private:
 int InstrumentedWidget::move_ctors = 0;
 int InstrumentedWidget::copy_ctors = 0;
 
-} // anonymous namespace
-
 static void AmbiguousEraseTest()
 {
     stdext::flat_map<AmbiguousEraseWidget, int> fs;
@@ -680,6 +678,8 @@ static void SearchTest()
     static_assert(std::is_same<decltype(it), typename FM::iterator>::value, "");
     static_assert(std::is_same<decltype(cit), typename FM::const_iterator>::value, "");
 }
+
+} // anonymous namespace
 
 void sg14_test::flat_map_test()
 {

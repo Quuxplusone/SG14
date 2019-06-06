@@ -45,8 +45,6 @@ private:
 int InstrumentedWidget::move_ctors = 0;
 int InstrumentedWidget::copy_ctors = 0;
 
-} // anonymous namespace
-
 static void AmbiguousEraseTest()
 {
     stdext::flat_set<AmbiguousEraseWidget> fs;
@@ -86,13 +84,15 @@ static void ExtractDoesntSwapTest()
     }
 }
 
+struct ThrowingSwapException {};
+
 struct ComparatorWithThrowingSwap {
     std::function<bool(int, int)> cmp_;
     static bool please_throw;
     ComparatorWithThrowingSwap(std::function<bool(int, int)> f) : cmp_(f) {}
     friend void swap(ComparatorWithThrowingSwap& a, ComparatorWithThrowingSwap& b) {
         if (please_throw)
-            throw "oops";
+            throw ThrowingSwapException();
         a.cmp_.swap(b.cmp_);
     }
     bool operator()(int a, int b) const {
@@ -118,20 +118,8 @@ static void ThrowingSwapDoesntBreakInvariants()
         assert(std::equal(expected_fsy.begin(), expected_fsy.end(), fsy.begin(), fsy.end()));
     }
 
-    if (true) {
-        ComparatorWithThrowingSwap::please_throw = true;
-        try {
-            swap(fsx, fsy);  // neither the comparators nor containers should be swapped
-            assert(false);
-        } catch (...) {}
-        ComparatorWithThrowingSwap::please_throw = false;
-        fsx.insert(9);
-        fsy.insert(10);
-        std::vector<int> expected_fsx = {9, 7, 6, 5, 4};
-        std::vector<int> expected_fsy = {1, 2, 3, 8, 10};
-        assert(std::equal(expected_fsx.begin(), expected_fsx.end(), fsx.begin(), fsx.end()));
-        assert(std::equal(expected_fsy.begin(), expected_fsy.end(), fsy.begin(), fsy.end()));
-    }
+    // However, if ComparatorWithThrowingSwap::please_throw were
+    // set to `true`, then flat_set's behavior would be undefined.
 }
 
 static void VectorBoolSanityTest()
@@ -256,6 +244,8 @@ static void SpecialMemberTest()
     static_assert(std::is_move_assignable<FS>::value, "");
     static_assert(std::is_nothrow_destructible<FS>::value, "");
 }
+
+} // anonymous namespace
 
 void sg14_test::flat_set_test()
 {
