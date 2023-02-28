@@ -210,9 +210,9 @@ namespace flatmap_detail {
         using iterator_category = std::random_access_iterator_tag;
 
         iter() = default;
-        iter(iter&&) = default;
+        iter(iter&&) noexcept = default;
         iter(const iter&) = default;
-        iter& operator=(iter&&) = default;
+        iter& operator=(iter&&) noexcept = default;
         iter& operator=(const iter&) = default;
         ~iter() = default;
 
