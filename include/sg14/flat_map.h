@@ -725,15 +725,63 @@ public:
         }
     }
 
-    // TODO: use the hint, here
+    // TODO: use more of the hint, here
     template<class... Args>
-    iterator try_emplace(const_iterator, const Key& k, Args&&... args) {
+    iterator try_emplace(const_iterator hint, const Key& k, Args&&... args) {
+        if (empty()) {
+            // hint must point end()
+            c_.keys.emplace_back(k);
+            // TODO: we must make this exception-safe if the container throws
+            c_.values.emplace_back(static_cast<Args&&>(args)...);
+            return end() - 1;
+        }
+
+        // at least 1 element in the map
+
+        if (hint.private_impl_getkey() == c_.keys.end()) {
+            // check if the current last element should be ordered before k
+            // if yes, insert at end, else fallback to regular try_emplace because the hint is wrong
+            auto prev = std::prev(hint);
+            if (compare_(*prev.private_impl_getkey(), k)) {
+                c_.keys.emplace_back(k);
+                // TODO: we must make this exception-safe if the container throws
+                c_.values.emplace_back(static_cast<Args&&>(args)...);
+                return end() - 1;
+            } else {
+              // hint is wrong, fallback to un-hinted implementation
+              return try_emplace(k, static_cast<Args&&>(args)...).first;
+            }
+        }
         return try_emplace(k, static_cast<Args&&>(args)...).first;
     }
 
-    // TODO: use the hint, here
+    // TODO: use more of the hint, here
     template<class... Args>
-    iterator try_emplace(const_iterator, Key&& k, Args&&... args) {
+    iterator try_emplace(const_iterator hint, Key&& k, Args&&... args) {
+        if (empty()) {
+            // hint must point end()
+            c_.keys.emplace_back(static_cast<Key&&>(k));
+            // TODO: we must make this exception-safe if the container throws
+            c_.values.emplace_back(static_cast<Args&&>(args)...);
+            return end() - 1;
+        }
+
+        // at least 1 element in the map
+
+        if (hint.private_impl_getkey() == c_.keys.end()) {
+            // check if the current last element should be ordered before k
+            // if yes, insert at end, else fallback to regular try_emplace because the hint is wrong
+            auto prev = std::prev(hint);
+            if (compare_(*prev.private_impl_getkey(), k)) {
+                c_.keys.emplace_back(static_cast<Key&&>(k));
+                // TODO: we must make this exception-safe if the container throws
+                c_.values.emplace_back(static_cast<Args&&>(args)...);
+                return end() - 1;
+            } else {
+                // hint is wrong, fallback to un-hinted implementation
+                return try_emplace(static_cast<Key&&>(k), static_cast<Args&&>(args)...).first;
+            }
+        }
         return try_emplace(static_cast<Key&&>(k), static_cast<Args&&>(args)...).first;
     }
 

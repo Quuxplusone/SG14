@@ -226,6 +226,117 @@ TEST(flat_map, TryEmplace)
     }
 }
 
+
+TEST(flat_map, TryEmplaceHint)
+{
+    sg14::flat_map<int, InstrumentedWidget> fm;
+    sg14::flat_map<int, InstrumentedWidget>::iterator iterator;
+    if (true) {
+        // try_emplace for a non-existent key does move-from.
+        InstrumentedWidget w("abc");
+        iterator = fm.try_emplace(fm.end(), 1, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == fm.begin());
+    }
+    if (true) {
+        // try_emplace over an existing key is a no-op.
+        InstrumentedWidget w("def");
+        iterator = fm.try_emplace(fm.end(), 1, std::move(w));
+        assert(!w.is_moved_from);
+        assert(fm.size() == 1);
+        assert(iterator->first == 1);
+        assert(iterator->second.str() == "abc");
+    }
+    if (true) {
+        // try_emplace to non-empty with correct hint.
+        InstrumentedWidget w("def");
+        iterator = fm.try_emplace(fm.end(), 2, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == (fm.end() - 1));
+        assert(fm.size() == 2);
+        assert(iterator->first == 2);
+        assert(iterator->second.str() == "def");
+    }
+    if (true) {
+        // try_emplace to non-empty with wrong hint.
+        InstrumentedWidget w("qqq");
+        iterator = fm.try_emplace(fm.end(), 0, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == fm.begin());
+        assert(fm.size() == 3);
+        assert(iterator->first == 0);
+        assert(iterator->second.str() == "qqq");
+    }
+    if (true) {
+        // try_emplace to non-empty with wrong hint (not end()).
+        InstrumentedWidget w("qqq2");
+        iterator = fm.try_emplace(fm.end() - 1, -1, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == fm.begin());
+        assert(fm.size() == 4);
+        assert(iterator->first == -1);
+        assert(iterator->second.str() == "qqq2");
+    }
+}
+
+TEST(flat_map, TryEmplaceHintConstRef)
+{
+    sg14::flat_map<int, InstrumentedWidget> fm;
+    sg14::flat_map<int, InstrumentedWidget>::iterator iterator;
+    int key;
+    if (true) {
+        // try_emplace for a non-existent key does move-from.
+        InstrumentedWidget w("abc");
+        key = 1;
+        iterator = fm.try_emplace(fm.end(), key, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == fm.begin());
+    }
+    if (true) {
+        // try_emplace over an existing key is a no-op.
+        InstrumentedWidget w("def");
+        iterator = fm.try_emplace(fm.end(), key, std::move(w));
+        assert(!w.is_moved_from);
+        assert(fm.size() == 1);
+        assert(iterator->first == 1);
+        assert(iterator->second.str() == "abc");
+    }
+    if (true) {
+        // try_emplace to non-empty with correct hint.
+        InstrumentedWidget w("def");
+        key = 2;
+        iterator = fm.try_emplace(fm.end(), key, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == (fm.end() - 1));
+        assert(fm.size() == 2);
+        assert(iterator->first == 2);
+        assert(iterator->second.str() == "def");
+    }
+    if (true) {
+        // try_emplace to non-empty with wrong hint.
+        InstrumentedWidget w("qqq");
+        key = 0;
+        iterator = fm.try_emplace(fm.end(), key, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == fm.begin());
+        assert(fm.size() == 3);
+        assert(iterator->first == 0);
+        assert(iterator->second.str() == "qqq");
+    }
+    if (true) {
+        // try_emplace to non-empty with wrong hint (not end()).
+        InstrumentedWidget w("qqq2");
+        key = -1;
+        iterator = fm.try_emplace(fm.end() - 1, key, std::move(w));
+        assert(w.is_moved_from);
+        assert(iterator == fm.begin());
+        assert(fm.size() == 4);
+        assert(iterator->first == -1);
+        assert(iterator->second.str() == "qqq2");
+    }
+}
+
+
 TEST(flat_map, VectorBool)
 {
     using FM = sg14::flat_map<bool, bool>;
