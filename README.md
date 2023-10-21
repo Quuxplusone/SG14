@@ -251,7 +251,9 @@ and erasure.
 [`plf::hive`](https://github.com/mattreecebentley/plf_hive),
 formerly known as
 [`plf::colony`](https://github.com/mattreecebentley/plf_colony). `hive` was proposed in
-[P0447](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p0447r20.html).
+[P0447](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p0447r23.html).
+This version incorporates API changes proposed in
+[P2596](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2596r0.html).
 
 ## How to build
 

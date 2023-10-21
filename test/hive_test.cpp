@@ -60,17 +60,12 @@ template<class A, class P> struct hivet_setup<sg14::hive<std::pmr::string, A, P>
 template<class H>
 H make_rope(size_t blocksize, size_t cap)
 {
-#if SG14_HIVE_P2596
     H h;
     for (size_t i=0; i < cap; i += blocksize) {
         H temp;
         temp.reserve(blocksize);
         h.splice(temp);
     }
-#else
-    H h(sg14::hive_limits(blocksize, blocksize));
-    h.reserve(cap);
-#endif
     return h;
 }
 
@@ -106,9 +101,8 @@ H make_rope(size_t blocksize, size_t cap)
     EXPECT_EQ(jt.prev(n), it);
 #endif
 
-TEST(hive, OutOfRangeReshapeByP2596)
+TEST(hive, OutOfRangeReshape)
 {
-#if SG14_HIVE_P2596
     sg14::hive<int> h;
     h.reshape(0);
     h.reshape(0, 0);
@@ -119,62 +113,6 @@ TEST(hive, OutOfRangeReshapeByP2596)
     ASSERT_THROW(h.reshape(h.max_block_size() + 1), std::length_error);
     ASSERT_THROW(h.reshape(h.max_block_size() + 1, 0), std::length_error);
     ASSERT_THROW(h.reshape(0, h.max_size() + 1), std::length_error);
-#endif
-}
-
-TEST(hive, OutOfRangeLimitsByP0447)
-{
-#if !SG14_HIVE_P2596
-    using H = sg14::hive<char>;
-    size_t min = H::block_capacity_hard_limits().min;
-    size_t max = H::block_capacity_hard_limits().max;
-    EXPECT_LE(min, max);
-    ASSERT_GT(min, min-1);
-    ASSERT_LT(max, max+1);
-
-    // These ranges are valid and overlap a physically possible range;
-    // the implementation COULD just clamp them to the possible range.
-    // Instead, P0447R20 says the behavior is undefined.
-
-    ASSERT_THROW(H(sg14::hive_limits(min-1, max)), std::length_error);
-    ASSERT_THROW(H(sg14::hive_limits(min, max+1)), std::length_error);
-    ASSERT_THROW(H(sg14::hive_limits(min-1, max+1)), std::length_error);
-    ASSERT_THROW(H(sg14::hive_limits(min-1, min)), std::length_error);
-    ASSERT_THROW(H(sg14::hive_limits(max, max+1)), std::length_error);
-
-    H h;
-    ASSERT_THROW(h.reshape({min-1, max}), std::length_error);
-    ASSERT_THROW(h.reshape({min, max+1}), std::length_error);
-    ASSERT_THROW(h.reshape({min-1, max+1}), std::length_error);
-    ASSERT_THROW(h.reshape({min-1, min}), std::length_error);
-    ASSERT_THROW(h.reshape({max, max+1}), std::length_error);
-#endif
-}
-
-TEST(hive, OutOfRangeLimitsByMath)
-{
-#if !SG14_HIVE_P2596
-    using H = sg14::hive<char>;
-    size_t min = H::block_capacity_hard_limits().min;
-    size_t max = H::block_capacity_hard_limits().max;
-    EXPECT_LE(min, max);
-    ASSERT_GT(min, min-1);
-    ASSERT_LT(max, max+1);
-
-    // These ranges are invalid, or physically impossible to enforce.
-    // P0447R20 says the behavior is undefined in these cases as well.
-
-    ASSERT_THROW(H(sg14::hive_limits(min-1, min-1)), std::length_error);
-    ASSERT_THROW(H(sg14::hive_limits(max+1, max+1)), std::length_error);
-    ASSERT_THROW(H(sg14::hive_limits(max, max-1)), std::length_error);
-    ASSERT_THROW(H(sg14::hive_limits(min+1, min)), std::length_error);
-
-    H h;
-    ASSERT_THROW(h.reshape({min-1, min-1}), std::length_error);
-    ASSERT_THROW(h.reshape({max+1, max+1}), std::length_error);
-    ASSERT_THROW(h.reshape({max, max-1}), std::length_error);
-    ASSERT_THROW(h.reshape({min+1, min}), std::length_error);
-#endif
 }
 
 TYPED_TEST(hivet, BasicInsertClear)
@@ -327,17 +265,9 @@ TEST(hive, ReshapeWithThrow)
         sg14::hive<S> h = make_rope<sg14::hive<S>>(9, 20);
         h.insert(20, S(&should_throw, 42));
         EXPECT_EQ(h.size(), 20u);
-#if !SG14_HIVE_P2596
-        EXPECT_EQ(h.block_capacity_limits().min, 9);
-        EXPECT_EQ(h.block_capacity_limits().max, 9);
-#endif
         try {
             should_throw = t;
-#if SG14_HIVE_P2596
             h.reshape(6);
-#else
-            h.reshape({6, 6});
-#endif
             EXPECT_EQ(h.size(), 20u);
             EXPECT_INVARIANTS(h);
             break;
@@ -349,9 +279,8 @@ TEST(hive, ReshapeWithThrow)
     }
 }
 
-TEST(hive, ReshapeUnusedBlocksP2596)
+TEST(hive, ReshapeUnusedBlocks)
 {
-#if SG14_HIVE_P2596
     sg14::hive<char> h = make_rope<sg14::hive<char>>(9, 42);
     h.insert(42, 'x');
     h.erase(h.begin(), h.begin().next(20));
@@ -361,44 +290,6 @@ TEST(hive, ReshapeUnusedBlocksP2596)
     h.reshape(10);
     EXPECT_EQ(h.size(), 22u);
     EXPECT_INVARIANTS(h);
-#endif
-}
-
-TEST(hive, ReshapeUnusedBlocks)
-{
-#if !SG14_HIVE_P2596
-    sg14::hive<char> h = make_rope<sg14::hive<char>>(9, 42);
-    h.insert(42, 'x');
-    h.erase(h.begin(), h.begin().next(20));
-    EXPECT_EQ(h.size(), 22u);
-    EXPECT_EQ(h.capacity(), 45u);
-    EXPECT_INVARIANTS(h);
-    h.reshape({6, 6});
-    EXPECT_EQ(h.size(), 22u);
-    EXPECT_EQ(h.capacity(), 24u);
-    EXPECT_INVARIANTS(h);
-#endif
-}
-
-TEST(hive, ReshapeUnusedBlocks2)
-{
-#if !SG14_HIVE_P2596
-    sg14::hive<char> h;
-    h.reshape({6, 9});
-    h.splice(sg14::hive<char>{1,2,3,4,5,6,7,8,9});
-    h.splice(sg14::hive<char>{1,2,3,4,5,6});
-    h.splice(sg14::hive<char>{1,2,3,4,5,6});
-    h.splice(sg14::hive<char>{1,2,3,4,5,6,7,8,9});
-    h.erase(h.begin(), h.begin().next(10));
-    h.erase(h.end().prev(10), h.end());
-    EXPECT_EQ(h.size(), 10u);
-    EXPECT_EQ(h.capacity(), 30u);
-    EXPECT_INVARIANTS(h);
-    h.reshape({6, 6});
-    EXPECT_EQ(h.size(), 10u);
-    EXPECT_EQ(h.capacity(), 12u);
-    EXPECT_INVARIANTS(h);
-#endif
 }
 
 TYPED_TEST(hivet, CustomAdvanceForward)
@@ -1324,11 +1215,7 @@ TEST(hive, InsertAndErase2)
 {
     std::mt19937 g;
     sg14::hive<int> h;
-#if SG14_HIVE_P2596
     h.reshape(10'000, 30'000);
-#else
-    h.reshape(sg14::hive_limits(10'000, h.block_capacity_limits().max));
-#endif
     h.insert(30'000, 1);
     EXPECT_EQ(h.size(), 30'000u);
     EXPECT_INVARIANTS(h);
@@ -2228,71 +2115,6 @@ TEST(hive, NonCopyable)
     EXPECT_EQ((++h.begin())->m, 2);
 }
 
-TEST(hive, Reshape)
-{
-#if !SG14_HIVE_P2596
-    sg14::hive<int> h;
-    h.reshape(sg14::hive_limits(50, 100));
-    EXPECT_EQ(h.block_capacity_limits().min, 50u);
-    EXPECT_EQ(h.block_capacity_limits().max, 100u);
-    EXPECT_TRUE(h.empty());
-    EXPECT_INVARIANTS(h);
-
-    h.insert(27);
-    EXPECT_EQ(h.size(), 1u);
-    EXPECT_EQ(h.capacity(), 50u);
-    EXPECT_INVARIANTS(h);
-
-    for (int i = 0; i < 100; ++i) {
-        h.insert(i);
-    }
-    EXPECT_EQ(h.size(), 101u);
-    EXPECT_EQ(h.capacity(), 200u);
-    EXPECT_INVARIANTS(h);
-
-    h.clear();
-    h.reshape(sg14::hive_limits(200, 2000));
-    EXPECT_TRUE(h.empty());
-    EXPECT_EQ(h.block_capacity_limits().min, 200u);
-    EXPECT_EQ(h.block_capacity_limits().max, 2000u);
-    EXPECT_INVARIANTS(h);
-
-    h.insert(27);
-    EXPECT_EQ(h.size(), 1u);
-    EXPECT_EQ(h.capacity(), 200u);
-    EXPECT_INVARIANTS(h);
-
-    static_assert(noexcept(h.block_capacity_limits()), "");
-    sg14::hive_limits soft = h.block_capacity_limits();
-    EXPECT_EQ(soft.min, 200u);
-    EXPECT_EQ(soft.max, 2000u);
-
-    static_assert(noexcept(decltype(h)::block_capacity_hard_limits()), "");
-    sg14::hive_limits hard = decltype(h)::block_capacity_hard_limits();
-    EXPECT_EQ(hard.min, 3u);
-    EXPECT_EQ(hard.max, 65535u);
-
-    for (int i = 0; i < 3300; ++i) {
-        h.insert(i);
-    }
-    EXPECT_EQ(h.size(), 3301u);
-    EXPECT_EQ(h.capacity(), 5200u);
-    EXPECT_INVARIANTS(h);
-
-    h.reshape(sg14::hive_limits(500, 500));
-    EXPECT_EQ(h.block_capacity_limits().min, 500u);
-    EXPECT_EQ(h.block_capacity_limits().max, 500u);
-    EXPECT_EQ(h.size(), 3301u);
-    EXPECT_EQ(h.capacity(), 3500u);
-    EXPECT_INVARIANTS(h);
-
-    h.reshape(sg14::hive_limits(200, 200));
-    EXPECT_EQ(h.size(), 3301u);
-    EXPECT_EQ(h.capacity(), 3400u);
-    EXPECT_INVARIANTS(h);
-#endif
-}
-
 TEST(hive, SpliceLvalue)
 {
     std::vector<int> v1 = {1, 2, 3};
@@ -2308,19 +2130,6 @@ TEST(hive, SpliceLvalue)
     EXPECT_INVARIANTS(h2);
 
     static_assert(!noexcept(h1.splice(h2)));
-
-#if !SG14_HIVE_P2596
-    // Test the throwing case
-    h1.reshape({5, 5});
-    h2.reshape({10, 10});
-    v2 = {15, 16, 17};
-    h2 = {15, 16, 17};
-    EXPECT_THROW(h1.splice(h2), std::length_error);
-    EXPECT_INVARIANTS(h1);
-    EXPECT_INVARIANTS(h2);
-    EXPECT_TRUE(std::is_permutation(h1.begin(), h1.end(), v1.begin(), v1.end()));
-    EXPECT_TRUE(std::is_permutation(h2.begin(), h2.end(), v2.begin(), v2.end()));
-#endif
 }
 
 TEST(hive, SpliceRvalue)
@@ -2338,19 +2147,6 @@ TEST(hive, SpliceRvalue)
     EXPECT_INVARIANTS(h2);
 
     static_assert(!noexcept(h1.splice(std::move(h2))));
-
-#if !SG14_HIVE_P2596
-    // Test the throwing case
-    h1.reshape({5, 5});
-    h2.reshape({10, 10});
-    v2 = {15, 16, 17};
-    h2 = {15, 16, 17};
-    EXPECT_THROW(h1.splice(std::move(h2)), std::length_error);
-    EXPECT_INVARIANTS(h1);
-    EXPECT_INVARIANTS(h2);
-    EXPECT_TRUE(std::is_permutation(h1.begin(), h1.end(), v1.begin(), v1.end()));
-    EXPECT_TRUE(std::is_permutation(h2.begin(), h2.end(), v2.begin(), v2.end()));
-#endif
 }
 
 TEST(hive, SpliceProperties)
@@ -2719,32 +2515,6 @@ TEST(hive, PmrCorrectness)
     he.insert(100, 42);
     hf.insert(100, 42);
 
-#if !SG14_HIVE_P2596
-    Hive h3(sg14::hive_limits(10, 10), &mr);
-    Hive h5(100, {10, 10}, &mr);
-    Hive h6(100, sg14::hive_limits(10, 10), &mr);
-    Hive h8(100, 42, {10, 10}, &mr);
-    Hive h9(100, 42, sg14::hive_limits(10, 10), &mr);
-    Hive hc({1, 2, 3, 4}, {10, 10}, &mr);
-    Hive hd({1, 2, 3, 4}, sg14::hive_limits(10, 10), &mr);
-
-    EXPECT_EQ(h3.size(), 0u);
-    EXPECT_EQ(h5.size(), 100u);
-    EXPECT_EQ(h6.size(), 100u);
-    EXPECT_EQ(h8.size(), 100u);
-    EXPECT_EQ(h9.size(), 100u);
-    EXPECT_EQ(hc.size(), 4u);
-    EXPECT_EQ(hd.size(), 4u);
-
-    h3.insert(100, 42);
-    h5.insert(100, 42);
-    h6.insert(100, 42);
-    h8.insert(100, 42);
-    h9.insert(100, 42);
-    hc.insert(100, 42);
-    hd.insert(100, 42);
-#endif
-
 #if __cpp_lib_ranges_to_container >= 202202L
     Hive hg(std::from_range, a, &mr);
     Hive hh(std::from_range, a | std::views::take(2), &mr);
@@ -2761,11 +2531,7 @@ TEST(hive, PmrCorrectReshape)
 {
     sg14::hive<int, std::pmr::polymorphic_allocator<int>> h(10);
     PmrGuard guard;
-#if SG14_HIVE_P2596
     h.reshape(400);
-#else
-    h.reshape({4, 4});
-#endif
     EXPECT_EQ(h.size(), 10u);
     EXPECT_INVARIANTS(h);
 }
@@ -2774,12 +2540,7 @@ TEST(hive, PmrCorrectShrinkToFit)
 {
     sg14::hive<int, std::pmr::polymorphic_allocator<int>> h(10);
     PmrGuard guard;
-#if SG14_HIVE_P2596
     h.reshape(400);
-#else
-    h.reshape({4, 4});
-    h.reshape({3, 10});
-#endif
     h.shrink_to_fit();
     EXPECT_EQ(h.size(), 10u);
     EXPECT_INVARIANTS(h);
