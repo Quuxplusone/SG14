@@ -350,26 +350,15 @@ TEST(inplace_function, ExceptionSafety)
     EXPECT_TRUE((caught) && (tf.countdown == 0) && (tf.constructed == 1) && (tf.destructed == 1));
 }
 
-template<size_t Cap>
-static constexpr size_t expected_alignment_for_capacity()
-{
-    constexpr size_t alignof_ptr = std::alignment_of<void*>::value;
-    constexpr size_t alignof_cap = std::alignment_of<std::aligned_storage_t<Cap>>::value;
-#define MIN(a,b) (a < b ? a : b)
-#define MAX(a,b) (a > b ? a : b)
-    return MAX(MIN(Cap, alignof_cap), alignof_ptr);
-#undef MAX
-#undef MIN
-}
-
 TEST(inplace_function, StructLayout)
 {
-    static_assert(std::alignment_of< sg14::inplace_function<void(int), 1> >::value == expected_alignment_for_capacity<1>(), "");
-    static_assert(std::alignment_of< sg14::inplace_function<void(int), 2> >::value == expected_alignment_for_capacity<2>(), "");
-    static_assert(std::alignment_of< sg14::inplace_function<void(int), 4> >::value == expected_alignment_for_capacity<4>(), "");
-    static_assert(std::alignment_of< sg14::inplace_function<void(int), 8> >::value == expected_alignment_for_capacity<8>(), "");
-    static_assert(std::alignment_of< sg14::inplace_function<void(int), 16> >::value == expected_alignment_for_capacity<16>(), "");
-    static_assert(std::alignment_of< sg14::inplace_function<void(int), 32> >::value == expected_alignment_for_capacity<32>(), "");
+    constexpr bool linux = (alignof(long double) == 16);
+    static_assert(alignof(sg14::inplace_function<void(int), 1>) == alignof(void*), "");
+    static_assert(alignof(sg14::inplace_function<void(int), 2>) == alignof(void*), "");
+    static_assert(alignof(sg14::inplace_function<void(int), 4>) == alignof(void*), "");
+    static_assert(alignof(sg14::inplace_function<void(int), 8>) == 8, "");
+    static_assert(alignof(sg14::inplace_function<void(int), 16>) == (linux ? 16 : alignof(void*)), "");
+    static_assert(alignof(sg14::inplace_function<void(int), 32>) == (linux ? 16 : alignof(void*)), "");
     static_assert(sizeof( sg14::inplace_function<void(int), sizeof(void*)> ) == 2 * sizeof(void*), "");
 }
 

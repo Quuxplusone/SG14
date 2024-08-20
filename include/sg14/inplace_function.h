@@ -51,23 +51,22 @@ union aligned_storage_helper {
     struct double4 { double a[4]; };
     template<class T> using maybe = std::conditional_t<(Cap >= sizeof(T)), T, char>;
     char real_data[Cap];
-    maybe<int> a;
-    maybe<long> b;
-    maybe<long long> c;
-    maybe<void*> d;
-    maybe<void(*)()> e;
-    maybe<double1> f;
-    maybe<double4> g;
-    maybe<long double> h;
+    maybe<short> a;
+    maybe<int> b;
+    maybe<long> c;
+    maybe<long long> d;
+    maybe<void*> e;
+    maybe<void(*)()> f;
+    maybe<double1> g;
+    maybe<double4> h;
+    maybe<long double> i;
 };
 
 template<size_t Cap, size_t Align = alignof(aligned_storage_helper<Cap>)>
-struct aligned_storage {
-    using type = std::aligned_storage_t<Cap, Align>;
+struct aligned_storage_t {
+    alignas(Align) char data_[Cap];
 };
 
-template<size_t Cap, size_t Align = alignof(aligned_storage_helper<Cap>)>
-using aligned_storage_t = typename aligned_storage<Cap, Align>::type;
 static_assert(sizeof(aligned_storage_t<sizeof(void*)>) == sizeof(void*), "A");
 static_assert(alignof(aligned_storage_t<sizeof(void*)>) == alignof(void*), "B");
 #else
