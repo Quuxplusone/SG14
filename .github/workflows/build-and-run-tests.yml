@@ -11,7 +11,14 @@ jobs:
       matrix:
         os: [ windows-latest, macos-latest, ubuntu-latest ]
         build_type: [Debug, Release]
-        cxx_standard: [14, 17, 20, 23]
+        cxx_standard: [14, 17, 20, 23, 26]
+        exclude:
+        - os: windows-latest
+          cxx_standard: 23
+        - os: macos-latest
+          cxx_standard: 26
+        - os: ubuntu-latest
+          cxx_standard: 26
     env:
       PREFIX: ${{ github.workspace }}/_local
     steps:
