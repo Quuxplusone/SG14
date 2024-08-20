@@ -230,7 +230,7 @@ public:
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-    // [containers.sequences.inplace_vector.cons]
+    // [inplace.vector.cons]
 
     inplace_vector() = default;
     inplace_vector(inplace_vector&&) = default;
@@ -384,8 +384,8 @@ public:
         }
     }
 
-    constexpr void reserve(size_type n) { if (n > N) SG14_INPLACE_VECTOR_THROW(std::bad_alloc()); }
-    constexpr void shrink_to_fit() {}
+    static constexpr void reserve(size_type n) { if (n > N) SG14_INPLACE_VECTOR_THROW(std::bad_alloc()); }
+    static constexpr void shrink_to_fit() noexcept {}
 
     // element access
 
@@ -410,7 +410,7 @@ public:
         return data()[i];
     }
 
-    // [containers.sequences.inplace_vector.data]
+    // [inplace.vector.data]
 
     constexpr T* data() noexcept { return this->base_data_(); }
     constexpr const T* data() const noexcept { return this->base_data_(); }
@@ -419,7 +419,7 @@ public:
     static constexpr size_type capacity() noexcept { return N; }
     [[nodiscard]] constexpr bool empty() const noexcept { return size_ == 0; };
 
-    // [containers.sequences.inplace_vector.modifiers]
+    // [inplace.vector.modifiers]
 
     template<class... Args>
     value_type& unchecked_emplace_back(Args&&... args) {
