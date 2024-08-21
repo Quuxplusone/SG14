@@ -35,4 +35,4 @@ jobs:
       - name: CMake Build
         run: cmake --build build --config RelWithDebInfo
       - name: CTest
-        run: ctest --test-dir build --config RelWithDebInfo
+        run: ctest --test-dir build
