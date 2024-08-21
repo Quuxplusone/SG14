@@ -96,7 +96,7 @@ C++23 also provides `flat_multimap` and `flat_multiset`, which we don't provide.
 
 Boost also provides all four adaptors; see [`boost::container::flat_set`](https://www.boost.org/doc/libs/1_83_0/doc/html/container/non_standard_containers.html#container.non_standard_containers.flat_xxx).
 
-### In-place vector (future > C++17)
+### In-place vector (C++26 > C++17)
 
 ```
 #include <sg14/inplace_vector.h>
@@ -109,7 +109,7 @@ class sg14::inplace_vector;
 but under the hood it stores its elements directly in-line, like a `std::array`, instead
 of using the heap. This container is proposed in
 [P0843](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p0843r9.html)
-and will likely be in C++26. The `sg14` version is portable back to C++17.
+and has been adopted into the C++26 draft. The `sg14` version is portable back to C++17.
 
 Boost provides this container under the name [`boost::container::static_vector`](https://www.boost.org/doc/libs/1_83_0/doc/html/container/non_standard_containers.html#container.non_standard_containers.static_vector).
 
@@ -120,6 +120,31 @@ We could provide `sg14::erase` instead, but then you'd have to know whether
 you had a `std::vector` or a `sg14::inplace_vector` in order to use it;
 or else use an ADL call, which isn't how `std::erase` is designed to be used.
 The erase-remove idiom works fine for `inplace_vector`.
+
+#### Allocator-aware in-place vector (future > C++20)
+
+```
+#include <sg14/aa_inplace_vector.h>
+
+template<class T, size_t N, class Alloc = std::allocator<T>>
+class sg14::inplace_vector;
+```
+
+`sg14::inplace_vector<int, 10, std::allocator<int>>` is a drop-in replacement for
+the C++17 allocator-unaware `sg14::inplace_vector<int, 10>`, but having allocator-awareness
+allows you to do three things you can't do without it:
+
+- `sg14::pmr::inplace_vector<std::pmr::string, 10>` can directly `emplace_back("abc")`
+    with the correct allocator, just like `std::pmr::vector<std::pmr::string>`.
+    Without allocator-awareness, you would have to write `emplace_back("abc", &mr)`
+    and keep track of your allocator separately alongside the data structure.
+
+- `sg14::inplace_vector<char, 10, SmallSizeAllocator>` can use a type smaller than
+    `size_t` to store the size of the vector, which means a smaller memory footprint.
+
+- `sg14::inplace_vector` can hold Boost.Interprocess types. In this case,
+    `inplace_vector::iterator` will be `boost::offset_ptr<T>` instead of `T*`.
+
 
 ### In-place type-erased types (future > C++14)
 
