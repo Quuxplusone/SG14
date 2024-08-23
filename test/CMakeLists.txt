@@ -36,6 +36,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
   set_property(TARGET utest APPEND PROPERTY COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   set_property(TARGET utest APPEND PROPERTY COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
+  # GCC 11 gives bogus warning "iteration 3 invokes undefined behavior"
+  set_property(SOURCE aa_inplace_vector_smallsize_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-aggressive-loop-optimizations")
   # GCC 13 gives bogus warnings on local types with typedefs
   set_property(SOURCE hive_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-unused-local-typedefs")
   if (CMAKE_CXX_COMPILER_VERSION MATCHES "^7.*")
