@@ -23,9 +23,9 @@ jobs:
       PREFIX: ${{ github.workspace }}/_local
     steps:
       # Check out project
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # Check out dependencies
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: google/googletest
           ref: 8d51dc50eb7e7698427fed81b85edad0e032112e
