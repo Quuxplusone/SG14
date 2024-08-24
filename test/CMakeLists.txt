@@ -3,6 +3,7 @@ find_package(GTest REQUIRED)
 include(GoogleTest)
 
 add_executable(utest
+  aa_inplace_vector_test.cpp
   aa_inplace_vector_pmr_test.cpp
   aa_inplace_vector_smallsize_test.cpp
   aa_inplace_vector_stdallocator_test.cpp

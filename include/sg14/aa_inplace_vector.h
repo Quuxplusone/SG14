@@ -437,17 +437,30 @@ struct SG14_INPLACE_VECTOR_TRIVIALLY_RELOCATABLE_IF((sg14::aaipv::be_trivially_r
     explicit ipvbase() = default;
     constexpr explicit ipvbase(const Alloc& alloc) : Alloc_(alloc) {}
     constexpr ipvbase(const ipvbase& rhs) noexcept(CopyCtorIsNoexcept)
-        : Alloc_(std::allocator_traits<Alloc>::select_on_container_copy_construction(rhs.get_allocator_())),
+        : ipvbase(rhs, std::allocator_traits<Alloc>::select_on_container_copy_construction(rhs.get_allocator_()))
+    {
+    }
+    constexpr ipvbase(const ipvbase& rhs, const Alloc& alloc)
+        : Alloc_(alloc),
           Data_()  // unneeded, but suppresses a GCC 11.4 warning about "should be explicitly initialized"
     {
         sg14::aaipv::uninitialized_copy_a(get_allocator_(), rhs.data_, rhs.data_ + rhs.size_, data_);
         set_size_(rhs.size_);
     }
     constexpr ipvbase(ipvbase&& rhs) noexcept(MoveCtorIsNoexcept)
-        : Alloc_(std::move(rhs.get_allocator_()))
+        : ipvbase(std::move(rhs), std::move(rhs.get_allocator_()))
+    {
+    }
+    constexpr ipvbase(ipvbase&& rhs, const Alloc& alloc)
+        : Alloc_(alloc)
     {
 #if defined(__cpp_lib_trivially_relocatable)
-        if constexpr (std::is_trivially_relocatable_v<T>) {
+        if constexpr (std::is_trivially_relocatable_v<T> &&
+                      sg14::aaipv::has_trivial_construct<Alloc, T, T&&>::value &&
+                      sg14::aaipv::has_trivial_destroy<Alloc, T>::value) {
+            // When the condition is false, this codepath is still correct
+            // but it might be a pessimization rather than an optimization.
+            //
             sg14::aaipv::uninitialized_relocate_a(get_allocator_(), rhs.data_, rhs.data_ + rhs.size_, data_);
             set_size_(rhs.size_);
             rhs.set_size_(0);
