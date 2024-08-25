@@ -450,16 +450,9 @@ TEST(IPV_TEST_NAME, Noexceptness)
     static_assert(!noexcept(v.erase(v.begin(), v.end())));
 }
 
-TEST(IPV_TEST_NAME, NoexceptnessOfSwap)
+TEST(IPV_TEST_NAME, SwapWhenElementSwappingThrows)
 {
     using std::swap;
-    {
-        std::string lvalue;
-        sg14::inplace_vector<std::string, 10> v;
-        static_assert(noexcept(swap(lvalue, lvalue)));
-        static_assert(noexcept(v.swap(v)));
-        static_assert(noexcept(swap(v, v)));
-    }
     {
         struct ThrowingSwappable {
             explicit ThrowingSwappable() { }

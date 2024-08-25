@@ -32,6 +32,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
         static_assert(std::is_nothrow_copy_assignable_v<T>);
         static_assert(std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(std::is_nothrow_swappable_v<T>);
 #if defined(__cpp_lib_trivially_relocatable)
         static_assert(!std::is_trivially_relocatable_v<T>);
 #endif // __cpp_lib_trivially_relocatable
@@ -44,11 +45,39 @@ TEST(IPV_TEST_NAME, TrivialTraits)
         static_assert(!std::is_trivially_copy_assignable_v<T>);
         static_assert(!std::is_trivially_move_assignable_v<T>);
         static_assert(!std::is_trivially_destructible_v<T>);
-        static_assert(!std::is_nothrow_copy_constructible_v<T>);
-        static_assert(!std::is_nothrow_move_constructible_v<T>); // because pmr::vector isn't nothrow move-assignable
+        static_assert(!std::is_nothrow_copy_constructible_v<T>); // because T(const T&, Alloc) is throwing
+        static_assert(!std::is_nothrow_move_constructible_v<T>); // because T(T&&, Alloc) is throwing
         static_assert(!std::is_nothrow_copy_assignable_v<T>);
         static_assert(!std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(!std::is_nothrow_swappable_v<T>); // because T::operator= is throwing
+#if defined(__cpp_lib_trivially_relocatable)
+        static_assert(!std::is_trivially_relocatable_v<T>);
+#endif // __cpp_lib_trivially_relocatable
+    }
+    {
+        // Test with a type that is trivial, but still cares about the value
+        // of the allocator with which it's constructed.
+        //
+        struct Dummy {
+            using allocator_type = std::pmr::polymorphic_allocator<Dummy>;
+            explicit Dummy(allocator_type) noexcept;
+            explicit Dummy(Dummy&&, allocator_type) noexcept;
+            explicit Dummy(const Dummy&, allocator_type) noexcept;
+        };
+        using T = sg14::pmr::inplace_vector<Dummy, 10>;
+        static_assert(!std::is_trivially_copyable_v<T>);
+        static_assert(!std::is_trivially_copy_constructible_v<T>);
+        static_assert(!std::is_trivially_move_constructible_v<T>);
+        static_assert(!std::is_trivially_copy_assignable_v<T>);
+        static_assert(!std::is_trivially_move_assignable_v<T>);
+        static_assert(std::is_trivially_destructible_v<T>);
+        static_assert(!std::is_nothrow_copy_constructible_v<T>); // because A::construct is throwing
+        static_assert(!std::is_nothrow_move_constructible_v<T>); // because A::construct is throwing
+        static_assert(!std::is_nothrow_copy_assignable_v<T>); // because A::construct is throwing
+        static_assert(!std::is_nothrow_move_assignable_v<T>); // because A::construct is throwing
+        static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(!std::is_nothrow_swappable_v<T>); // because A::construct is throwing
 #if defined(__cpp_lib_trivially_relocatable)
         static_assert(!std::is_trivially_relocatable_v<T>);
 #endif // __cpp_lib_trivially_relocatable
@@ -66,6 +95,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
         static_assert(!std::is_copy_assignable_v<T>);
         static_assert(std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(std::is_nothrow_swappable_v<T>);
 #if defined(__cpp_lib_trivially_relocatable)
         static_assert(!std::is_trivially_relocatable_v<T>);
 #endif // __cpp_lib_trivially_relocatable
@@ -83,6 +113,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
         static_assert(!std::is_copy_assignable_v<T>);
         static_assert(std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(std::is_nothrow_swappable_v<T>);
 #if defined(__cpp_lib_trivially_relocatable)
         static_assert(!std::is_trivially_relocatable_v<T>);
 #endif // __cpp_lib_trivially_relocatable
@@ -100,6 +131,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
         static_assert(std::is_nothrow_copy_assignable_v<T>);
         static_assert(std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(std::is_nothrow_swappable_v<T>);
 #if defined(__cpp_lib_trivially_relocatable)
         static_assert(!std::is_trivially_relocatable_v<T>);
 #endif // __cpp_lib_trivially_relocatable
@@ -117,6 +149,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
         static_assert(std::is_nothrow_copy_assignable_v<T>);
         static_assert(std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(std::is_nothrow_swappable_v<T>);
 #if defined(__cpp_lib_trivially_relocatable)
         static_assert(!std::is_trivially_relocatable_v<T>);
 #endif // __cpp_lib_trivially_relocatable
@@ -134,6 +167,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
         static_assert(!std::is_copy_assignable_v<T>);
         static_assert(std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+        static_assert(std::is_nothrow_swappable_v<T>);
 #if defined(__cpp_lib_trivially_relocatable)
         static_assert(!std::is_trivially_relocatable_v<T>);
 #endif // __cpp_lib_trivially_relocatable
