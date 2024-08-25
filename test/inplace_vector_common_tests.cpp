@@ -110,10 +110,10 @@ TEST(IPV_TEST_NAME, Iterators)
 {
     {
         using V = sg14::inplace_vector<int, 5>;
-        using I = typename V::iterator;
-        using CI = typename V::const_iterator;
-        using RI = typename V::reverse_iterator;
-        using CRI = typename V::const_reverse_iterator;
+        using I = V::iterator;
+        using CI = V::const_iterator;
+        using RI = V::reverse_iterator;
+        using CRI = V::const_reverse_iterator;
         static_assert(std::is_same_v<I, int*>);
         static_assert(std::is_same_v<CI, const int*>);
         static_assert(std::is_same_v<RI, std::reverse_iterator<I>>);
@@ -145,10 +145,10 @@ TEST(IPV_TEST_NAME, Iterators)
     }
     {
         using V = sg14::inplace_vector<int, 0>;
-        using I = typename V::iterator;
-        using CI = typename V::const_iterator;
-        using RI = typename V::reverse_iterator;
-        using CRI = typename V::const_reverse_iterator;
+        using I = V::iterator;
+        using CI = V::const_iterator;
+        using RI = V::reverse_iterator;
+        using CRI = V::const_reverse_iterator;
         static_assert(std::is_same_v<I, int*>);
         static_assert(std::is_same_v<CI, const int*>);
         static_assert(std::is_same_v<RI, std::reverse_iterator<I>>);
