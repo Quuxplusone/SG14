@@ -33,6 +33,23 @@ struct CountingAlloc {
     }
 };
 
+template<class T, bool B>
+struct NonNoexceptAlloc {
+    using value_type = T;
+    using propagate_on_container_copy_assignment = std::bool_constant<B>;
+    using propagate_on_container_move_assignment = std::bool_constant<B>;
+    using propagate_on_container_swap = std::bool_constant<B>;
+    using is_always_equal = std::false_type;
+    explicit NonNoexceptAlloc(int);
+    NonNoexceptAlloc(const NonNoexceptAlloc&); // non-throwing but not noexcept
+    NonNoexceptAlloc(NonNoexceptAlloc&&); // non-throwing but not noexcept
+    NonNoexceptAlloc& operator=(const NonNoexceptAlloc&); // non-throwing but not noexcept
+    NonNoexceptAlloc& operator=(NonNoexceptAlloc&&); // non-throwing but not noexcept
+    ~NonNoexceptAlloc() noexcept(false); // non-throwing but not noexcept
+    friend bool operator==(NonNoexceptAlloc, NonNoexceptAlloc) { return true; } // non-throwing but not noexcept
+    int i_;
+};
+
 TEST(aa_inplace_vector, AllocExtendedCopyCtor)
 {
     using A = CountingAlloc<int>;
@@ -61,6 +78,26 @@ TEST(aa_inplace_vector, AllocExtendedMoveCtor)
     EXPECT_EQ(v2.get_allocator(), A(&mr2));
     EXPECT_EQ(mr1.size(), v1.size());
     EXPECT_EQ(mr2.size(), 3u);
+}
+
+TEST(aa_inplace_vector, IgnoreNoexceptnessOfAllocator)
+{
+    {
+        using T = sg14::inplace_vector<int, 10, NonNoexceptAlloc<int, true>>;
+        static_assert(std::is_nothrow_copy_constructible_v<T>);
+        static_assert(std::is_nothrow_move_constructible_v<T>);
+        static_assert(std::is_nothrow_copy_assignable_v<T>);
+        static_assert(std::is_nothrow_move_assignable_v<T>);
+        static_assert(std::is_nothrow_destructible_v<T>);
+    }
+    {
+        using T = sg14::inplace_vector<int, 10, NonNoexceptAlloc<int, false>>;
+        static_assert(std::is_nothrow_copy_constructible_v<T>);
+        static_assert(std::is_nothrow_move_constructible_v<T>);
+        static_assert(std::is_nothrow_copy_assignable_v<T>);
+        static_assert(std::is_nothrow_move_assignable_v<T>);
+        static_assert(std::is_nothrow_destructible_v<T>);
+    }
 }
 
 #endif // __cplusplus >= 202002L

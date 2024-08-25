@@ -293,6 +293,11 @@ struct ipv_alloc_holder {
 #endif
     explicit ipv_alloc_holder() = default;
     constexpr explicit ipv_alloc_holder(const Alloc& alloc) : alloc_(alloc) {}
+    ipv_alloc_holder(const ipv_alloc_holder&) noexcept = default;
+    ipv_alloc_holder(ipv_alloc_holder&&) noexcept = default;
+    ipv_alloc_holder& operator=(const ipv_alloc_holder&) noexcept = default;
+    ipv_alloc_holder& operator=(ipv_alloc_holder&&) noexcept = default;
+    ~ipv_alloc_holder() noexcept = default;
     constexpr const Alloc& get_allocator_() const { return alloc_; }
 };
 
@@ -397,13 +402,11 @@ struct SG14_INPLACE_VECTOR_TRIVIALLY_RELOCATABLE_IF((sg14::aaipv::be_trivially_r
     static constexpr bool CopyCtorIsNoexcept =
         ((std::is_nothrow_copy_constructible_v<T> &&
           sg14::aaipv::has_trivial_construct<Alloc, T, const T&>::value) || (N == 0)) &&
-        sg14::aaipv::propagate_on_container_copy_construction<Alloc>::value &&
-        std::is_nothrow_copy_constructible_v<sg14::ipv_alloc_holder<Alloc>>;
+        sg14::aaipv::propagate_on_container_copy_construction<Alloc>::value;
 
     static constexpr bool MoveCtorIsNoexcept =
         ((std::is_nothrow_move_constructible_v<T> &&
-          sg14::aaipv::has_trivial_construct<Alloc, T, T&&>::value) || (N == 0)) &&
-        std::is_nothrow_move_constructible_v<sg14::ipv_alloc_holder<Alloc>>;
+          sg14::aaipv::has_trivial_construct<Alloc, T, T&&>::value) || (N == 0));
 
     // Copy-assignment follows the Lakos Rule: if the precondition might be violated, then it's not noexcept.
     //
