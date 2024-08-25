@@ -27,7 +27,7 @@ namespace smallsize {
 TEST(IPV_TEST_NAME, TrivialTraits)
 {
     {
-        using T = sg14::inplace_vector<int, 10>;
+        using T = smallsize::inplace_vector<int, 10>;
         static_assert(std::is_trivially_copyable_v<T>);
         static_assert(std::is_trivially_copy_constructible_v<T>);
         static_assert(std::is_trivially_move_constructible_v<T>);
@@ -44,7 +44,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
 #endif // __cpp_lib_trivially_relocatable
     }
     {
-        using T = sg14::inplace_vector<std::vector<int>, 10>;
+        using T = smallsize::inplace_vector<std::vector<int>, 10>;
         static_assert(!std::is_trivially_copyable_v<T>);
         static_assert(!std::is_trivially_copy_constructible_v<T>);
         static_assert(!std::is_trivially_move_constructible_v<T>);
@@ -62,7 +62,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
     }
     {
         constexpr bool msvc = !std::is_nothrow_move_constructible_v<std::list<int>>;
-        using T = sg14::inplace_vector<std::list<int>, 10>;
+        using T = smallsize::inplace_vector<std::list<int>, 10>;
         static_assert(!std::is_trivially_copyable_v<T>);
         static_assert(!std::is_trivially_copy_constructible_v<T>);
         static_assert(!std::is_trivially_move_constructible_v<T>);
@@ -79,7 +79,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
 #endif // __cpp_lib_trivially_relocatable
     }
     {
-        using T = sg14::inplace_vector<MoveOnly, 10>;
+        using T = smallsize::inplace_vector<MoveOnly, 10>;
         static_assert(!std::is_trivially_copyable_v<T>);
         static_assert(!std::is_trivially_copy_constructible_v<T>);
         static_assert(!std::is_trivially_move_constructible_v<T>);
@@ -96,7 +96,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
 #endif // __cpp_lib_trivially_relocatable
     }
     {
-        using T = sg14::inplace_vector<MoveOnlyNT, 10>;
+        using T = smallsize::inplace_vector<MoveOnlyNT, 10>;
         static_assert(!std::is_trivially_copyable_v<T>);
         static_assert(!std::is_trivially_copy_constructible_v<T>);
         static_assert(!std::is_trivially_move_constructible_v<T>);
@@ -113,7 +113,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
 #endif // __cpp_lib_trivially_relocatable
     }
     {
-        using T = sg14::inplace_vector<int, 0>;
+        using T = smallsize::inplace_vector<int, 0>;
         static_assert(std::is_trivially_copyable_v<T>);
         static_assert(std::is_trivially_copy_constructible_v<T>);
         static_assert(std::is_trivially_move_constructible_v<T>);
@@ -130,7 +130,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
 #endif // __cpp_lib_trivially_relocatable
     }
     {
-        using T = sg14::inplace_vector<std::vector<int>, 0>;
+        using T = smallsize::inplace_vector<std::vector<int>, 0>;
         static_assert(std::is_trivially_copyable_v<T>);
         static_assert(std::is_trivially_copy_constructible_v<T>);
         static_assert(std::is_trivially_move_constructible_v<T>);
@@ -147,7 +147,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
 #endif // __cpp_lib_trivially_relocatable
     }
     {
-        using T = sg14::inplace_vector<std::list<int>, 0>;
+        using T = smallsize::inplace_vector<std::list<int>, 0>;
         static_assert(std::is_trivially_copyable_v<T>);
         static_assert(std::is_trivially_copy_constructible_v<T>);
         static_assert(std::is_trivially_move_constructible_v<T>);
@@ -164,7 +164,7 @@ TEST(IPV_TEST_NAME, TrivialTraits)
 #endif // __cpp_lib_trivially_relocatable
     }
     {
-        using T = sg14::inplace_vector<std::unique_ptr<int>, 0>;
+        using T = smallsize::inplace_vector<std::unique_ptr<int>, 0>;
         static_assert(std::is_trivially_copyable_v<T>);
         static_assert(!std::is_trivially_copy_constructible_v<T>);
         static_assert(std::is_trivially_move_constructible_v<T>);
@@ -195,7 +195,7 @@ TEST(IPV_TEST_NAME, PartiallyTrivialTraits)
             S& operator=(S&&) = default;
             ~S() = default;
         };
-        using T = sg14::inplace_vector<S, 10>;
+        using T = smallsize::inplace_vector<S, 10>;
         static_assert(!std::is_trivially_copyable_v<T>);
         static_assert(!std::is_trivially_copy_constructible_v<T>);
         static_assert(!std::is_trivially_copy_assignable_v<T>);
@@ -238,7 +238,7 @@ TEST(IPV_TEST_NAME, PartiallyTrivialTraits)
             S& operator=(S&&) = default;
             ~S() = default;
         };
-        using T = sg14::inplace_vector<S, 10>;
+        using T = smallsize::inplace_vector<S, 10>;
         static_assert(!std::is_trivially_copyable_v<T>);
         static_assert(std::is_trivially_copy_constructible_v<T> == ConditionallyTrivial);
         static_assert(!std::is_trivially_copy_assignable_v<T>);
@@ -281,7 +281,7 @@ TEST(IPV_TEST_NAME, PartiallyTrivialTraits)
             S& operator=(S&&) = default;
             ~S() { *p_ += 1; }
         };
-        using T = sg14::inplace_vector<S, 10>;
+        using T = smallsize::inplace_vector<S, 10>;
         static_assert(!std::is_trivially_copyable_v<T>);
         // T's non-trivial dtor prevents `is_trivially_copy_constructible`,
         // even though T's copy constructor itself is trivial.
