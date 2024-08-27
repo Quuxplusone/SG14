@@ -3,10 +3,10 @@ find_package(GTest REQUIRED)
 include(GoogleTest)
 
 add_executable(utest
-  aa_inplace_vector_test.cpp
   aa_inplace_vector_pmr_test.cpp
   aa_inplace_vector_smallsize_test.cpp
   aa_inplace_vector_stdallocator_test.cpp
+  aa_inplace_vector_test.cpp
   flat_map_test.cpp
   flat_set_test.cpp
   hive_test.cpp
@@ -51,6 +51,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
   set_property(SOURCE aa_inplace_vector_pmr_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-wd4127")
   set_property(SOURCE aa_inplace_vector_smallsize_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-wd4127")
   set_property(SOURCE aa_inplace_vector_stdallocator_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-wd4127")
+  set_property(SOURCE aa_inplace_vector_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-wd4127")
   set_property(SOURCE hive_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-wd4127")
   set_property(SOURCE inplace_vector_test.cpp APPEND PROPERTY COMPILE_OPTIONS "-wd4127")
   # MSVC gives bogus "possible loss of data" warnings

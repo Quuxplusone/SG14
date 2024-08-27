@@ -14,6 +14,7 @@ struct SmallSizeAllocator {
     // not-an-allocator from the Standard's point of view. SG14 is happy
     // with it, though.
 };
+static_assert(std::allocator_traits<SmallSizeAllocator<int, int>>::is_always_equal::value);
 
 namespace smallsize {
   template<class T, size_t N> using inplace_vector = sg14::inplace_vector<T, N, SmallSizeAllocator<T, unsigned char>>;

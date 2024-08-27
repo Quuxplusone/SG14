@@ -3,8 +3,15 @@
 #include <exception>
 #include <gtest/gtest.h>
 #include <set>
-#include <sg14/aa_inplace_vector.h>
 #include <utility>
+
+struct AssertFail : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+#define SG14_INPLACE_VECTOR_ASSERT_PRECONDITION(x, msg) if (!(x)) throw AssertFail(msg);
+
+#include <sg14/aa_inplace_vector.h>
 
 template<class T>
 struct CountingAlloc {
@@ -50,6 +57,27 @@ struct NonNoexceptAlloc {
     int i_;
 };
 
+template<class T>
+struct PropagatingAllocator {
+    using value_type = T;
+    using propagate_on_container_copy_assignment = std::true_type;
+    using propagate_on_container_move_assignment = std::true_type;
+    using propagate_on_container_swap = std::true_type;
+    explicit PropagatingAllocator(int i) : i_(i) {}
+    int i_ = 0;
+    friend bool operator==(const PropagatingAllocator&, const PropagatingAllocator&) = default;
+
+    template<class U, class... Args>
+    void construct(U *p, Args&&... args) {
+        ::new (p) U(std::forward<Args>(args)...);
+    }
+
+    template<class U>
+    void destroy(U *p) {
+        p->~U();
+    }
+};
+
 TEST(aa_inplace_vector, AllocExtendedCopyCtor)
 {
     using A = CountingAlloc<int>;
@@ -86,8 +114,8 @@ TEST(aa_inplace_vector, IgnoreNoexceptnessOfAllocator)
         using T = sg14::inplace_vector<int, 10, NonNoexceptAlloc<int, true>>;
         static_assert(std::is_nothrow_copy_constructible_v<T>);
         static_assert(std::is_nothrow_move_constructible_v<T>);
-        static_assert(std::is_nothrow_copy_assignable_v<T>);
-        static_assert(std::is_nothrow_move_assignable_v<T>);
+        static_assert(!std::is_nothrow_copy_assignable_v<T>); // because Lakos rule
+        static_assert(!std::is_nothrow_move_assignable_v<T>); // because Lakos rule
         static_assert(std::is_nothrow_destructible_v<T>);
     }
     {
@@ -97,6 +125,80 @@ TEST(aa_inplace_vector, IgnoreNoexceptnessOfAllocator)
         static_assert(std::is_nothrow_copy_assignable_v<T>);
         static_assert(std::is_nothrow_move_assignable_v<T>);
         static_assert(std::is_nothrow_destructible_v<T>);
+    }
+}
+
+TEST(aa_inplace_vector, SwapAllocators)
+{
+    using A = PropagatingAllocator<int>;
+    static_assert(std::allocator_traits<A>::propagate_on_container_swap::value);
+    {
+        using T = sg14::inplace_vector<int, 4, A>;
+        T a = T(A(1));
+        T b = T(A(1));
+        a.swap(b);
+        swap(a, b);
+        T c = T(A(2));
+        try { a.swap(c); EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "swap tried to swap unequal allocators; this is UB"); }
+        try { swap(a, c); EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "swap tried to swap unequal allocators; this is UB"); }
+    }
+    {
+        using T = sg14::inplace_vector<int, 0, A>;
+        T a = T(A(1));
+        T b = T(A(1));
+        a.swap(b);
+        swap(a, b);
+        T c = T(A(2));
+        try { a.swap(c); EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "swap tried to swap unequal allocators; this is UB"); }
+        try { swap(a, c); EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "swap tried to swap unequal allocators; this is UB"); }
+    }
+}
+
+TEST(aa_inplace_vector, CopyAssignAllocators)
+{
+    using A = PropagatingAllocator<int>;
+    static_assert(std::allocator_traits<A>::propagate_on_container_copy_assignment::value);
+    {
+        using T = sg14::inplace_vector<int, 4, A>;
+        static_assert(!std::is_trivially_copy_assignable_v<T>);
+        T a = T(A(1));
+        T b = T(A(1));
+        a = b;
+        T c = T(A(2));
+        try { a = c; EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "operator= tried to propagate an unequal allocator; this is UB"); }
+    }
+    {
+        using T = sg14::inplace_vector<int, 0, A>;
+        static_assert(!std::is_trivially_copy_assignable_v<T>);
+        T a = T(A(1));
+        T b = T(A(1));
+        a = b;
+        T c = T(A(2));
+        try { a = c; EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "operator= tried to propagate an unequal allocator; this is UB"); }
+    }
+}
+
+TEST(aa_inplace_vector, MoveAssignAllocators)
+{
+    using A = PropagatingAllocator<int>;
+    static_assert(std::allocator_traits<A>::propagate_on_container_move_assignment::value);
+    {
+        using T = sg14::inplace_vector<int, 4, A>;
+        static_assert(!std::is_trivially_move_assignable_v<T>);
+        T a = T(A(1));
+        T b = T(A(1));
+        a = std::move(b);
+        T c = T(A(2));
+        try { a = std::move(c); EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "operator= tried to propagate an unequal allocator; this is UB"); }
+    }
+    {
+        using T = sg14::inplace_vector<int, 0, A>;
+        static_assert(!std::is_trivially_move_assignable_v<T>);
+        T a = T(A(1));
+        T b = T(A(1));
+        a = std::move(b);
+        T c = T(A(2));
+        try { a = std::move(c); EXPECT_TRUE(false); } catch (const AssertFail& ex) { EXPECT_STREQ(ex.what(), "operator= tried to propagate an unequal allocator; this is UB"); }
     }
 }
 

@@ -385,7 +385,7 @@ struct SG14_INPLACE_VECTOR_TRIVIALLY_RELOCATABLE_IF((sg14::aaipv::be_trivially_r
           std::is_trivially_destructible_v<T> &&
           sg14::aaipv::has_trivial_construct<Alloc, T, const T&>::value &&
           sg14::aaipv::has_trivial_destroy<Alloc, T>::value) || (N == 0)) &&
-        (std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value || std::allocator_traits<Alloc>::is_always_equal::value);
+        std::allocator_traits<Alloc>::is_always_equal::value;
 
     static constexpr bool MoveAssignIsDefaultable =
         ((std::is_trivially_move_constructible_v<T> &&
@@ -393,7 +393,7 @@ struct SG14_INPLACE_VECTOR_TRIVIALLY_RELOCATABLE_IF((sg14::aaipv::be_trivially_r
           std::is_trivially_destructible_v<T> &&
           sg14::aaipv::has_trivial_construct<Alloc, T, T&&>::value &&
           sg14::aaipv::has_trivial_destroy<Alloc, T>::value) || (N == 0)) &&
-        (std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value || std::allocator_traits<Alloc>::is_always_equal::value);
+        std::allocator_traits<Alloc>::is_always_equal::value;
 
     static constexpr bool DtorIsDefaultable =
         ((std::is_trivially_destructible_v<T> &&
@@ -546,11 +546,11 @@ struct SG14_INPLACE_VECTOR_TRIVIALLY_RELOCATABLE_IF((sg14::aaipv::be_trivially_r
 #if defined(__cpp_lib_trivially_relocatable)
             size_t n = a.size_;
             a.set_size_(b.size_);
-            sg14::aaipv::uninitialized_relocate_a(get_allocator_(), a.data_ + b.size_, a.data_ + n, b.data_ + b.size_);
+            sg14::aaipv::uninitialized_relocate_a(a.get_allocator_(), a.data_ + b.size_, a.data_ + n, b.data_ + b.size_);
             b.set_size_(n);
 #else
-            sg14::aaipv::uninitialized_move_a(get_allocator_(), a.data_ + b.size_, a.data_ + a.size_, b.data_ + b.size_);
-            sg14::aaipv::destroy_a(get_allocator_(), a.data_ + b.size_, a.data_ + a.size_);
+            sg14::aaipv::uninitialized_move_a(a.get_allocator_(), a.data_ + b.size_, a.data_ + a.size_, b.data_ + b.size_);
+            sg14::aaipv::destroy_a(a.get_allocator_(), a.data_ + b.size_, a.data_ + a.size_);
             a.swap_sizes_(b);
 #endif
         }
