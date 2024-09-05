@@ -299,6 +299,7 @@ struct ipv_alloc_holder {
     ipv_alloc_holder& operator=(ipv_alloc_holder&&) noexcept = default;
     ~ipv_alloc_holder() noexcept = default;
     constexpr const Alloc& get_allocator_() const { return alloc_; }
+    constexpr void swap_allocators_(ipv_alloc_holder& rhs) { using std::swap; swap(alloc_, rhs.alloc_); }
 };
 
 template<class T>
@@ -308,6 +309,7 @@ struct ipv_alloc_holder<std::allocator<T>> {
     explicit ipv_alloc_holder() = default;
     constexpr explicit ipv_alloc_holder(const Alloc&) {}
     static constexpr Alloc get_allocator_() { return Alloc(); }
+    static constexpr void swap_allocators_(ipv_alloc_holder&) { }
 };
 
 template<class T, size_t N, class size_type>
@@ -361,6 +363,7 @@ struct SG14_INPLACE_VECTOR_TRIVIALLY_RELOCATABLE_IF((sg14::aaipv::be_trivially_r
     using ipv_data_holder<T, N, typename std::allocator_traits<Alloc>::size_type>::set_size_;
     using ipv_data_holder<T, N, typename std::allocator_traits<Alloc>::size_type>::swap_sizes_;
     using ipv_alloc_holder<Alloc>::get_allocator_;
+    using ipv_alloc_holder<Alloc>::swap_allocators_;
 
     // There is a feature-test macro for "conditionally trivial SMFs," namely
     // (__cpp_concepts >= 202002L); but in fact neither GCC 11.4 nor AppleClang 15
@@ -536,21 +539,31 @@ struct SG14_INPLACE_VECTOR_TRIVIALLY_RELOCATABLE_IF((sg14::aaipv::be_trivially_r
 
     static constexpr void swap_(ipvbase& a, ipvbase& b) noexcept(SwapIsNoexcept)
     {
-        if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value && !std::allocator_traits<Alloc>::is_always_equal::value) {
-            SG14_INPLACE_VECTOR_ASSERT_PRECONDITION(a.get_allocator_() == b.get_allocator_(), "swap tried to swap unequal allocators; this is UB");
-        }
         if (a.size_ < b.size_) {
             swap_(b, a);
         } else {
+            if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value && !std::allocator_traits<Alloc>::is_always_equal::value) {
+                SG14_INPLACE_VECTOR_ASSERT_PRECONDITION(a.get_allocator_() == b.get_allocator_(), "swap tried to swap unequal allocators; this is UB");
+                a.swap_allocators_(b);
+            }
             std::swap_ranges(a.data_, a.data_ + b.size_, b.data_);
 #if defined(__cpp_lib_trivially_relocatable)
-            size_t n = a.size_;
-            a.set_size_(b.size_);
-            sg14::aaipv::uninitialized_relocate_a(a.get_allocator_(), a.data_ + b.size_, a.data_ + n, b.data_ + b.size_);
-            b.set_size_(n);
+            if constexpr (std::is_trivially_relocatable_v<T> &&
+                          sg14::aaipv::has_trivial_construct<Alloc, T, T&&>::value &&
+                          sg14::aaipv::has_trivial_destroy<Alloc, T>::value) {
+                size_t n = a.size_;
+                a.set_size_(b.size_);
+                std::uninitialized_relocate(a.data_ + b.size_, a.data_ + n, b.data_ + b.size_);
+                b.set_size_(n);
+                return;
+            }
 #else
-            sg14::aaipv::uninitialized_move_a(a.get_allocator_(), a.data_ + b.size_, a.data_ + a.size_, b.data_ + b.size_);
-            sg14::aaipv::destroy_a(a.get_allocator_(), a.data_ + b.size_, a.data_ + a.size_);
+            sg14::aaipv::uninitialized_move_a(b.get_allocator_(), a.data_ + b.size_, a.data_ + a.size_, b.data_ + b.size_);
+            if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value && !std::allocator_traits<Alloc>::is_always_equal::value) {
+                sg14::aaipv::destroy_a(b.get_allocator_(), a.data_ + b.size_, a.data_ + a.size_);
+            } else {
+                sg14::aaipv::destroy_a(a.get_allocator_(), a.data_ + b.size_, a.data_ + a.size_);
+            }
             a.swap_sizes_(b);
 #endif
         }
