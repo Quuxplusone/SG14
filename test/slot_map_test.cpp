@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <deque>
 #include <forward_list>
@@ -12,6 +13,10 @@
 #include <random>
 #include <type_traits>
 #include <utility>
+
+#if __cplusplus >= 202002L || __cpp_concepts >= 202002L
+#include <sg14/aa_inplace_vector.h>
+#endif // __cplusplus >= 202002L || __cpp_concepts >= 202002L
 
 namespace {
 namespace TestKey {
@@ -34,6 +39,11 @@ uint16_t& get(key_16_8_t& k, std::integral_constant<int, 0>) { return k.index; }
 uint8_t& get(key_16_8_t& k, std::integral_constant<int, 1>) { return k.generation; }
 #endif // __cplusplus < 201703L
 } // namespace TestKey
+
+#if __cplusplus >= 202002L || __cpp_concepts >= 202002L
+template<class T> using InplaceVector = sg14::inplace_vector<T, 2000>;
+template<class T> using PmrInplaceVector = sg14::pmr::inplace_vector<T, 2000>;
+#endif // __cplusplus >= 202002L || __cpp_concepts >= 202002L
 
 namespace TestContainer {
 
@@ -353,7 +363,9 @@ static void VerifyCapacityExists(bool expected)
     SM sm;
     auto n = sm.capacity();
     static_assert(std::is_same<decltype(n), typename SM::size_type>::value, "");
-    EXPECT_TRUE(n == 0);
+    if (std::is_same<typename SM::container_type, std::vector<int>>::value) {
+        EXPECT_TRUE(n == 0);
+    }
     sm.reserve(100);
     EXPECT_TRUE(sm.capacity() >= 100);
     EXPECT_TRUE(sm.slot_count() >= 100);
@@ -594,6 +606,22 @@ TEST(slot_map, CustomKeyType)
     GenerationsDontSkipTest<slot_map_3>();
     IndexesAreUsedEvenlyTest<slot_map_3>();
 #endif // __cplusplus >= 201703L
+
+#if __cplusplus >= 202002L
+    // Test slot_map with a custom key type and sg14::inplace_vector.
+    using slot_map_3b = sg14::slot_map<int, TestKey::key_11_5_t, InplaceVector>;
+    BasicTests<slot_map_3b>(42, 37);
+    BoundsCheckingTest<slot_map_3b>();
+    FullContainerStressTest<slot_map_3b>([]() { return 42; });
+    InsertEraseStressTest<slot_map_3b>([i=3]() mutable { return ++i; });
+    EraseInLoopTest<slot_map_3b>();
+    EraseRangeTest<slot_map_3b>();
+    PartitionTest<slot_map_3b>();
+    ReserveTest<slot_map_3b>();
+    VerifyCapacityExists<slot_map_3b>(true);
+    GenerationsDontSkipTest<slot_map_3b>();
+    IndexesAreUsedEvenlyTest<slot_map_3b>();
+#endif // __cplusplus >= 202002L
 }
 
 TEST(slot_map, DequeContainer)
@@ -705,5 +733,7 @@ static_assert(SlotMapContainer<std::vector>);
 static_assert(SlotMapContainer<std::deque>);
 static_assert(SlotMapContainer<std::list>);
 static_assert(!SlotMapContainer<std::forward_list>);
+static_assert(SlotMapContainer<InplaceVector>);
+static_assert(SlotMapContainer<PmrInplaceVector>);
 static_assert(!SlotMapContainer<std::pair>);
 #endif // __cpp_concepts >= 202002
